@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare, XCircle, UserCheck, UserX, ConciergeBell, CheckCircle, Undo2, Tag } from "lucide-react";
 import Image from "next/image";
 import { useUser } from "@/context/UserContext";
-import { getProductsByStoreId, getServicesByStoreId, getCustomersByStoreId, addTransaction, getStoreDetails } from "@/lib/firestoreUtils";
+import { getProductsByStoreId, getServicesByStoreId, getCustomersByStoreId, addTransaction, getStoreDetails, addCustomer as addCustomerFirestore } from "@/lib/firestoreUtils";
 import type { Product, Service, CartItem, Customer, TransactionItem, Store } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -29,6 +29,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+
 
 const mockCategories = ["All", "Favorites", "Drinks", "Pastries", "Food", "Merchandise", "Services"]; 
 
@@ -44,9 +50,17 @@ type LastCartAction =
   | { type: 'increment_existing_item'; itemId: string; itemType: 'product' | 'service' }
   | null;
 
-// Basic regex for UI validation (not for server-side security)
 const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const basicPhoneRegex = /^\+?[1-9]\d{1,14}$/; // E.164-ish, very loose
+const basicPhoneRegex = /^\+?[1-9]\d{1,14}$/; 
+
+const newCustomerFormSchema = z.object({
+  name: z.string().min(1, "Customer name is required."),
+  email: z.string().email("Invalid email address.").optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")), // Basic validation for UI, more strict on server if needed
+  notes: z.string().optional(),
+});
+type NewCustomerFormValues = z.infer<typeof newCustomerFormSchema>;
+
 
 export default function SalesPage() {
   const { user, userDoc } = useUser();
@@ -83,7 +97,19 @@ export default function SalesPage() {
 
   // Customer Modal State
   const [isCustomerModalOpen, setIsCustomerModalOpen] = React.useState(false);
+  const [customerModalView, setCustomerModalView] = React.useState<'search' | 'add'>('search');
   const [customerSearchTerm, setCustomerSearchTerm] = React.useState("");
+  const [isAddingCustomer, setIsAddingCustomer] = React.useState(false);
+
+  const newCustomerForm = useForm<NewCustomerFormValues>({
+    resolver: zodResolver(newCustomerFormSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      notes: "",
+    },
+  });
 
 
   React.useEffect(() => {
@@ -245,7 +271,6 @@ export default function SalesPage() {
     setAmountTendered("");
     setPromoCodeInput("");
     setAppliedPromoCode(null);
-    // setAppliedDiscountAmount(0); // This will be reset by the useEffect watching appliedPromoCode
     setReceiptRecipient("");
     setReceiptSent(false);
     if (clearLastAction) {
@@ -363,7 +388,7 @@ export default function SalesPage() {
   };
 
   const handleNoReceipt = () => {
-    setReceiptSent(true); // Treat as if receipt step is "handled"
+    setReceiptSent(true); 
     toast({
       title: "No Receipt",
       description: "Customer opted out of a digital receipt.",
@@ -427,6 +452,8 @@ export default function SalesPage() {
     setReceiptRecipient(customer.email || customer.phone || ""); 
     setIsCustomerModalOpen(false);
     setCustomerSearchTerm("");
+    setCustomerModalView('search'); // Reset to search view
+    newCustomerForm.reset(); // Clear new customer form
     toast({ title: "Customer Assigned", description: `${customer.name} assigned to this transaction.`});
   };
 
@@ -455,6 +482,47 @@ export default function SalesPage() {
   
   const isReceiptRecipientValidEmail = basicEmailRegex.test(receiptRecipient);
   const isReceiptRecipientValidPhone = basicPhoneRegex.test(receiptRecipient);
+
+  const handleOpenCustomerModal = () => {
+    setCustomerModalView('search'); // Always start in search view
+    newCustomerForm.reset();
+    setIsCustomerModalOpen(true);
+  }
+
+  const onSubmitNewCustomer = async (data: NewCustomerFormValues) => {
+    if (!userDoc?.storeId) {
+        toast({ title: "Error", description: "Store ID not found. Cannot add customer.", variant: "destructive" });
+        return;
+    }
+    setIsAddingCustomer(true);
+    try {
+        const newCustomerId = await addCustomerFirestore(userDoc.storeId, {
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            notes: data.notes,
+        });
+        const newCustomer: Customer = {
+            id: newCustomerId,
+            storeId: userDoc.storeId,
+            name: data.name,
+            email: data.email || "",
+            phone: data.phone || "",
+            notes: data.notes || "",
+            totalSpent: 0,
+            loyaltyPoints: 0,
+            createdAt: new Date() as any, // Temporary, will be Firestore Timestamp
+            lastUpdatedAt: new Date() as any, // Temporary
+        };
+        setCustomers(prev => [...prev, newCustomer].sort((a,b) => a.name.localeCompare(b.name)));
+        handleSelectCustomer(newCustomer); // Assign new customer and close modal
+        toast({ title: "Customer Added", description: `${data.name} has been added and assigned.` });
+    } catch (error: any) {
+        console.error("Error adding new customer:", error);
+        toast({ title: "Add Customer Failed", description: error.message, variant: "destructive" });
+    }
+    setIsAddingCustomer(false);
+  };
 
 
   return (
@@ -656,7 +724,7 @@ export default function SalesPage() {
                 <Label className="text-xs text-muted-foreground">Customer</Label>
                 {selectedCustomerId && selectedCustomerName ? (
                     <div className="flex items-center justify-between p-2 border rounded-md bg-background h-10">
-                        <Button variant="link" className="p-0 h-auto text-sm font-medium text-foreground flex items-center hover:no-underline" onClick={() => setIsCustomerModalOpen(true)} disabled={isProcessingOrSending || currentStep !== 'order'}>
+                        <Button variant="link" className="p-0 h-auto text-sm font-medium text-foreground flex items-center hover:no-underline" onClick={handleOpenCustomerModal} disabled={isProcessingOrSending || currentStep !== 'order'}>
                             <UserCheck className="mr-2 h-4 w-4 text-primary"/>{selectedCustomerName}
                         </Button>
                         <Button variant="ghost" size="icon" onClick={handleClearCustomer} className="h-7 w-7 text-muted-foreground hover:text-destructive" disabled={isProcessingOrSending || currentStep !== 'order'}>
@@ -665,7 +733,7 @@ export default function SalesPage() {
                         </Button>
                     </div>
                 ) : (
-                    <Button variant="outline" className="w-full h-10 justify-start" onClick={() => setIsCustomerModalOpen(true)} disabled={isProcessingOrSending || currentStep !== 'order'}>
+                    <Button variant="outline" className="w-full h-10 justify-start" onClick={handleOpenCustomerModal} disabled={isProcessingOrSending || currentStep !== 'order'}>
                         <UserPlus className="mr-2 h-4 w-4 text-muted-foreground" />
                         Assign Customer
                     </Button>
@@ -675,42 +743,93 @@ export default function SalesPage() {
             <Dialog open={isCustomerModalOpen} onOpenChange={setIsCustomerModalOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Assign Customer</DialogTitle>
-                        <DialogDescription>Search for an existing customer or add a new one.</DialogDescription>
+                        <DialogTitle>{customerModalView === 'search' ? 'Assign Customer' : 'Add New Customer'}</DialogTitle>
+                        <DialogDescription>
+                            {customerModalView === 'search' ? 'Search for an existing customer or add a new one.' : 'Enter details for the new customer.'}
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="relative mt-2 mb-4">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                            placeholder="Search by name, email, phone..." 
-                            className="pl-10"
-                            value={customerSearchTerm}
-                            onChange={(e) => setCustomerSearchTerm(e.target.value)} 
-                        />
-                    </div>
-                    <ScrollArea className="h-[200px] border rounded-md">
-                        {filteredCustomersForModal.length > 0 ? (
-                            filteredCustomersForModal.map(customer => (
-                                <div key={customer.id} 
-                                     className="p-2 hover:bg-accent cursor-pointer border-b last:border-b-0"
-                                     onClick={() => handleSelectCustomer(customer)}>
-                                    <p className="font-medium text-sm text-foreground">{customer.name}</p>
-                                    <p className="text-xs text-muted-foreground">{customer.email || customer.phone || "No contact info"}</p>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="p-4 text-center text-sm text-muted-foreground">
-                                {customerSearchTerm ? "No customers match your search." : "No customers found."}
-                            </p>
-                        )}
-                    </ScrollArea>
-                    <DialogFooter className="sm:justify-between pt-4">
-                        <Button type="button" variant="outline" onClick={() => toast({ title: "Coming Soon!", description: "Full customer creation form will be available here."})}>
-                            <UserPlus className="mr-2 h-4 w-4" /> Add New Customer
-                        </Button>
-                        <DialogClose asChild>
-                            <Button type="button" variant="secondary">Cancel</Button>
-                        </DialogClose>
-                    </DialogFooter>
+
+                    {customerModalView === 'search' && (
+                        <>
+                            <div className="relative mt-2 mb-4">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input 
+                                    placeholder="Search by name, email, phone..." 
+                                    className="pl-10"
+                                    value={customerSearchTerm}
+                                    onChange={(e) => setCustomerSearchTerm(e.target.value)} 
+                                />
+                            </div>
+                            <ScrollArea className="h-[200px] border rounded-md">
+                                {filteredCustomersForModal.length > 0 ? (
+                                    filteredCustomersForModal.map(customer => (
+                                        <div key={customer.id} 
+                                             className="p-2 hover:bg-accent cursor-pointer border-b last:border-b-0"
+                                             onClick={() => handleSelectCustomer(customer)}>
+                                            <p className="font-medium text-sm text-foreground">{customer.name}</p>
+                                            <p className="text-xs text-muted-foreground">{customer.email || customer.phone || "No contact info"}</p>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="p-4 text-center text-sm text-muted-foreground">
+                                        {customerSearchTerm ? "No customers match your search." : "No customers found."}
+                                    </p>
+                                )}
+                            </ScrollArea>
+                            <DialogFooter className="sm:justify-between pt-4">
+                                <Button type="button" variant="outline" onClick={() => setCustomerModalView('add')}>
+                                    <UserPlus className="mr-2 h-4 w-4" /> Add New Customer
+                                </Button>
+                                <DialogClose asChild>
+                                    <Button type="button" variant="secondary">Cancel</Button>
+                                </DialogClose>
+                            </DialogFooter>
+                        </>
+                    )}
+
+                    {customerModalView === 'add' && (
+                        <Form {...newCustomerForm}>
+                            <form onSubmit={newCustomerForm.handleSubmit(onSubmitNewCustomer)} className="space-y-4 pt-2">
+                                <FormField control={newCustomerForm.control} name="name" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Name</FormLabel>
+                                        <FormControl><Input placeholder="Customer's full name" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                                <FormField control={newCustomerForm.control} name="email" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Email (Optional)</FormLabel>
+                                        <FormControl><Input type="email" placeholder="customer@example.com" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                                <FormField control={newCustomerForm.control} name="phone" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Phone (Optional)</FormLabel>
+                                        <FormControl><Input type="tel" placeholder="+15551234567" {...field} /></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                                <FormField control={newCustomerForm.control} name="notes" render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Notes (Optional)</FormLabel>
+                                        <FormControl><Textarea placeholder="Any relevant notes about the customer..." {...field} rows={2}/></FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}/>
+                                <DialogFooter className="sm:justify-between pt-4">
+                                     <Button type="button" variant="outline" onClick={() => { setCustomerModalView('search'); newCustomerForm.reset();}}>
+                                        Back to Search
+                                    </Button>
+                                    <Button type="submit" disabled={isAddingCustomer}>
+                                        {isAddingCustomer && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Save & Assign Customer
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </Form>
+                    )}
                 </DialogContent>
             </Dialog>
 
@@ -751,8 +870,8 @@ export default function SalesPage() {
                     <Button onClick={() => handlePaymentMethodSelect('card')} className="h-20 text-xl bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600" disabled={cartItems.length === 0 || isProcessingOrSending}>
                         <CreditCard className="mr-3 h-8 w-8"/>Card
                     </Button>
-                    <Button variant="outline" className="h-16 text-muted-foreground" disabled>Split Payment (Soon)</Button>
-                    <Button variant="outline" className="h-16 text-muted-foreground" disabled>Other Methods (Soon)</Button>
+                    <Button variant="outline" className="h-16 text-muted-foreground" disabled={cartItems.length === 0 || isProcessingOrSending}>Split Payment (Soon)</Button>
+                    <Button variant="outline" className="h-16 text-muted-foreground" disabled={cartItems.length === 0 || isProcessingOrSending}>Other Methods (Soon)</Button>
                 </div>
             </>
         )}
