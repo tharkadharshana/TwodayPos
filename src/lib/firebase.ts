@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp, type FirebaseOptions } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 // These variables are expected to be in your .env.local file
@@ -25,5 +25,23 @@ if (!getApps().length) {
 
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Enable Firestore offline persistence
+enableIndexedDbPersistence(db, { cacheSizeBytes: CACHE_SIZE_UNLIMITED })
+  .then(() => {
+    console.log("Firestore offline persistence enabled.");
+  })
+  .catch((err) => {
+    if (err.code == 'failed-precondition') {
+      // Multiple tabs open, persistence can only be enabled in one tab at a time.
+      console.warn("Firestore offline persistence failed: Multiple tabs open or other precondition error.");
+    } else if (err.code == 'unimplemented') {
+      // The current browser does not support all of the features required to enable persistence
+      console.warn("Firestore offline persistence failed: Browser does not support required features.");
+    } else {
+      console.error("Firestore offline persistence failed: ", err);
+    }
+  });
+
 
 export { app, auth, db };
