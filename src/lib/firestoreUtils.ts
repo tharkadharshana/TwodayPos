@@ -203,9 +203,6 @@ export const addProduct = async (storeId: string, productData: Omit<Product, "id
     createdAt: serverTimestamp() as Timestamp,
     lastUpdatedAt: serverTimestamp() as Timestamp,
   };
-  // The actual await for setDoc is important for strict sync.
-  // For offlineFriendly, Firestore handles queueing automatically.
-  // This function will now always return a promise that resolves when the write is accepted by Firestore (either locally for offline, or by server).
   await setDoc(newProductRef, fullProductData);
   return newProductRef.id;
 };
@@ -228,6 +225,12 @@ export const getProductsByStoreId = async (storeId: string | null): Promise<Prod
     console.warn("getProductsByStoreId called with a null or undefined storeId. Returning empty array.");
     return [];
   }
+  // For very large catalogs (e.g., 50,000+ items), directly fetching all products like this
+  // can be inefficient for initial load, both online and for caching.
+  // Consider implementing pagination (using startAfter, limit) or
+  // more specific initial filters (e.g., by a default category) if performance issues arise.
+  // Firestore's offline cache will store results of queries made, so subsequent loads of the same
+  // filtered/paginated data will be fast from cache.
   const productsCollection = collection(db, "products");
   const q = query(productsCollection, where("storeId", "==", storeId), orderBy("name"));
   const querySnapshot = await getDocs(q);
@@ -239,7 +242,6 @@ export const updateProduct = async (productId: string, data: Partial<Product>): 
     throw new Error("updateProduct called without a productId.");
   }
   const productRef = doc(db, "products", productId);
-  // Destructure to remove fields that should not be directly updated or are handled by serverTimestamp
   const { id, storeId, createdAt, ...updateDataSafe } = data; 
   await updateDoc(productRef, {
     ...updateDataSafe,
@@ -286,6 +288,8 @@ export const getServicesByStoreId = async (storeId: string | null): Promise<Serv
     console.warn("getServicesByStoreId called with a null or undefined storeId. Returning empty array.");
     return [];
   }
+  // Similar to products, for very large numbers of services, consider pagination or
+  // more targeted initial fetching strategies.
   const servicesCollection = collection(db, "services");
   const q = query(servicesCollection, where("storeId", "==", storeId), orderBy("name"));
   const querySnapshot = await getDocs(q);
@@ -297,7 +301,6 @@ export const updateService = async (serviceId: string, data: Partial<Service>): 
     throw new Error("updateService called without a serviceId.");
   }
   const serviceRef = doc(db, "services", serviceId);
-  // Destructure to remove fields that should not be directly updated or are handled by serverTimestamp
   const { id, storeId, createdAt, ...updateDataSafe } = data;
   await updateDoc(serviceRef, {
     ...updateDataSafe,
@@ -383,6 +386,7 @@ export const addTransaction = async (
   taxAmount: number,
   totalAmount: number,
   paymentMethod: string,
+  terminalId?: string, // Added optional terminalId
   customerId?: string,
   customerName?: string,
   discountAmountVal?: number, 
@@ -400,11 +404,9 @@ export const addTransaction = async (
 
   const newTransactionRef = doc(collection(db, "transactions"));
 
-  // This function now returns the promise from runTransaction
-  // The calling UI will decide whether to await it based on dataHandlingMode
   return runTransaction(db, async (firestoreTransaction) => {
     const transactionItems: TransactionItem[] = cartItems.map(item => ({
-      itemId: item.productId, // Use productId as itemId consistently
+      itemId: item.productId,
       itemType: item.itemType || 'product',
       name: item.name,
       sku: item.sku || "", 
@@ -417,6 +419,7 @@ export const addTransaction = async (
       id: newTransactionRef.id,
       storeId,
       transactionDisplayId: newTransactionRef.id.substring(0, 8).toUpperCase(),
+      terminalId: terminalId || undefined, // Store terminalId if provided
       timestamp: serverTimestamp() as Timestamp,
       cashierId,
       cashierName: cashierName || "N/A",
@@ -427,14 +430,14 @@ export const addTransaction = async (
       taxAmount,
       totalAmount,
       paymentMethod,
-      paymentStatus: "completed", // Default to completed, can be updated later for offline scenarios
+      paymentStatus: "completed",
       customerId: customerId || "",
       customerName: customerName || "",
-      digitalReceiptSent: false, // Will be updated if sent
+      digitalReceiptSent: false,
       receiptChannel: null,
       receiptRecipient: null,
-      offlineProcessed: !navigator.onLine, // Basic check if transaction initiated offline
-      syncedAt: navigator.onLine ? serverTimestamp() as Timestamp : null, 
+      offlineProcessed: typeof navigator !== 'undefined' && !navigator.onLine, 
+      syncedAt: typeof navigator !== 'undefined' && navigator.onLine ? serverTimestamp() as Timestamp : null, 
       notes: "",
       originalTransactionId: "",
       refundReason: "",
@@ -442,19 +445,15 @@ export const addTransaction = async (
     };
     firestoreTransaction.set(newTransactionRef, transactionData);
 
-    // Update product stock quantities
     for (const item of cartItems) {
-      if (item.itemType === 'product' || !item.itemType) { // Treat undefined itemType as product
+      if (item.itemType === 'product' || !item.itemType) {
         const productRef = doc(db, "products", item.productId);
         const productSnap = await firestoreTransaction.get(productRef);
-
         if (!productSnap.exists()) {
           throw new Error(`Product with ID ${item.productId} (${item.name}) not found during transaction.`);
         }
-
         const currentStock = productSnap.data().stockQuantity as number;
         const newStock = currentStock - item.quantity;
-
         if (newStock < 0) {
           throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}, Requested: ${item.quantity}.`);
         }
@@ -477,7 +476,7 @@ export const addTransaction = async (
           });
       }
     }
-    return newTransactionRef.id; // runTransaction returns the value from the callback
+    return newTransactionRef.id;
   });
 };
 
@@ -494,6 +493,9 @@ export const getTransactionsByStoreId = async (storeId: string | null, count: nu
     orderBy("timestamp", "desc"),
     limit(count)
   );
+  // Note: For a production system with many transactions, you'd implement pagination here.
+  // The 'count' parameter is a simple form of limiting, but true pagination
+  // would involve `startAfter` with the last document from the previous page.
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Transaction));
 };

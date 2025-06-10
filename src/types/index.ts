@@ -88,6 +88,7 @@ export type Transaction = {
   id: string; 
   storeId: string;
   transactionDisplayId?: string; 
+  terminalId?: string; // Added for terminal-specific tracking
   timestamp: Timestamp;
   cashierId: string; 
   cashierName?: string; 
