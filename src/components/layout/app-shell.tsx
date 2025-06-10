@@ -66,10 +66,10 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
                     isActive={currentPath.startsWith(subItem.href)}
                     onClick={handleLinkClick}
                   >
-                    <>
+                    <span> {/* Wrapper span */}
                       <subItem.icon className="mr-2 h-4 w-4" />
                       {subItem.title}
-                    </>
+                    </span>
                   </SidebarMenuSubButton>
                 </Link>
               </SidebarMenuSubItem>
@@ -88,10 +88,10 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
             onClick={handleLinkClick}
             tooltip={item.title}
           >
-            <>
+            <span> {/* Wrapper span */}
               <item.icon className="h-5 w-5" />
               <span>{item.title}</span>
-            </>
+            </span>
           </SidebarMenuButton>
         </Link>
       </SidebarMenuItem>
@@ -150,16 +150,18 @@ function SyncStatusIndicator() {
   }
   
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent">
-          <Icon className={cn("h-5 w-5", iconColor)} />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="bg-popover text-popover-foreground">
-        <p>{statusText}</p>
-      </TooltipContent>
-    </Tooltip>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent">
+            <Icon className={cn("h-5 w-5", iconColor)} />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="bg-popover text-popover-foreground">
+          <p>{statusText}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
