@@ -1,0 +1,78 @@
+# **App Name**: PerfectPOS
+
+## Core Features:
+
+- User Authentication: Secure and swift access for staff using email/phone and password, with optional biometric login.
+- Sales Processing: Process transactions swiftly with a prominent product search, category filters, and a clear shopping cart summary. Prioritize quick actions and real-time updates.
+- Predictive Inventory Management: An AI powered tool that monitors product sales, predicting when stock is likely to be depleted. Then provides timely low stock alerts and smart reorder suggestions to store managers.
+- Inventory Management: Easily manage products, stock levels, and details with an organized listing and quick adjustment options.
+- Dashboard Analytics: Quickly grasp key metrics, sales trends, and top products in an easy-to-understand dashboard.
+- Digital Receipts: Easily generate and deliver receipts to customers via WhatsApp, Telegram, SMS, or email, ensuring fast service.
+- Refunds and Returns: Handle returns and refunds smoothly with an efficient guided workflow.
+- Offline Transaction Capability: Process sales transactions seamlessly even without an active internet connection, with robust automatic data synchronization upon reconnection.
+- Customer Relationship Management: Quickly add and search for customer profiles, link them to transactions, and view their basic purchase history for personalized service.
+- Dashboard Analytics: Quickly grasp key metrics, sales trends, and top products in an easy-to-understand visual dashboard.
+- Transaction History & Reporting: Access detailed historical transaction data with advanced search and filtering, supporting efficient customer service and auditing.
+- Custom APIs: custom APIs for external system integration
+- 	User Authentication & Access Control: Secure login via email/phone + password.
+- Biometric Login: Support biometric login (Face ID, fingerprint) on mobile devices.
+- Role Based Access: Role-based access control (Admin, Manager, Cashier) to define system permissions.
+- Optional Multi-Store Login: Optional multi-store login selection for users tied to specific store locations.
+- Fast Sales Interface: Fast, fluid sales interface with Searchable product catalog.
+- Category Filters: Category filters and favorites.
+- Barcode Scanner: Barcode scanner (with camera support on mobile).
+- Shopping Cart: Shopping cart summary with real-time updates.
+- Multi-Payment Methods: Multi-payment method support (cash, card, custom).
+- Offline Transaction Support: Offline transaction support with seamless background data sync once reconnected.
+- Customer Search: Assign or search for customer during the sale.
+- Quick Actions: Quick “Clear Cart,” “Complete Sale,” and “Refund” actions.
+- Add/Edit Products: Add, edit, and manage products with: SKU, barcode, price, stock quantity, images, category. Toggle visibility on POS.
+- Bulk Product Import/Export: Support bulk product import/export.
+- Real-Time Stock Indicators: Real-time stock indicators (low, out of stock).
+- Simple Stock Adjustment: Simple stock adjustments (in, out, set exact value) with reason logging.
+- Visual Dashboard: Visual dashboard with: Sales KPIs (Total Sales, Transactions, Avg Sale Value).
+- Sales Trend Chart: Sales trend line/bar charts by day/week/month.
+- Top-Selling Products: Top-selling products, best hours.
+- Payment Method Distribution: Payment method distribution (donut/pie chart).
+- Custom Date Range Filters: Custom date range filters.
+- Mobile Chart Layouts: Mobile-friendly chart layouts using Chart.js.
+- Monitor Product Movement: Monitor product movement and forecast stock-outs.
+- Smart Reorder Suggestions: Low stock alerts and smart reorder suggestions based on: Sales velocity, Historical trends, Supplier lead time (if available)
+- Search Original Transaction: Search original transaction.
+- Select Items For Refund: Select items to refund (full or partial).
+- Auto-Calculate Refund Amount: Auto-calculate refund amount (with taxes, discounts).
+- Choose Refund Method: Choose refund method (cash, card reversal, store credit).
+- Track Return Reasons: Track return reasons.
+- Deliver Receipts: Deliver receipts instantly via: Email, SMS, WhatsApp, Telegram
+- Auto Populate Contacts: Auto-populate contact info if customer is linked.
+- Toast Notifications: Toast notifications for send success/failure.
+- Add/Manage Customer Profiles: Add and manage customer profiles with: Name, phone, email, address, Total spent, loyalty points, birthday (for promotions).
+- Link Customers To Transactions: Link customers to transactions.
+- View Purchase History: View basic purchase history.
+- Adjust Loyalty Points: Admin ability to adjust loyalty points manually.
+- View/Filter Transactions: View and filter by: Date range, Customer name or phone, Cashier or store, Payment method
+- Transaction Detail View: Transaction detail view with: Itemized list, Receipt status, Resend receipt, Start refund process
+- Export Data Formats: Exportable data formats (CSV, PDF optional).
+- Multi-Store Management: Support for managing multiple stores: Assign staff and stock per store. Store-specific settings (taxes, hours, contact info).
+- Cross-Store Dashboard: Cross-store dashboards and reports (admin only).
+- Integration Management: Integration management UI for: Payments (Stripe, Square, etc.), Messaging (Twilio, WhatsApp Business API), Email (SendGrid, Mailgun)
+- Manage Custom API: Add, test, and manage custom external API integrations securely (with API keys, webhook URLs, etc.).
+- POS Offline Work: POS works offline with: Local transaction queuing, Automatic sync when online
+- Sync Status Indicator: Persistent sync status indicator with: Icon + tooltip showing “Synced,” “Pending X,” or “Sync Error.”
+- Admin Store Settings: Admin-only: Store details (name, address, contact info), Tax settings, Business hours, Digital receipt customization (logo, footer message)
+- Preview Receipt: Optionally preview receipt layout before saving.
+- Native Feel UI: Native-feeling UI on Android/iOS.
+- Responsive Layout: Responsive layout on Web (desktop/tablet/mobile).
+- Bottom Navigation/Side Bar: Use: Bottom navigation for mobile, Sidebar for web/tablets.
+- Design System: Unified design system with loading indicators, confirmation modals, and toast notifications.
+
+## Style Guidelines:
+
+- Dark green (#1DB954), inspired by Uber, signifies growth and financial transactions, suitable for a POS system.
+- Black (#000000) provides a sleek, modern contrast and is used for text and important UI elements.
+- Light green (#B3FFB3) draws attention to key interactive elements and calls to action.
+- 'Bebas Neue' (sans-serif) delivers a modern, precise look with a touch of boldness.
+- 'Roboto' (sans-serif) ensures excellent readability and a clean aesthetic for continuous text. It complements 'Bebas Neue' well.
+- Replicate app functions, focusing on simplicity and clarity. Each icon is easily recognizable and intuitive, aiding user navigation without overwhelming the interface.
+- Ensure responsiveness and adaptability to screen size/device type, ensuring a consistent experience on desktop, tablet, and mobile.
+- Subtle transitions to create an interface that feels lively without being distracting. Use animations for feedback or when transitioning from section to section.

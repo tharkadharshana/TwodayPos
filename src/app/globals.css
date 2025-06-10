@@ -8,73 +8,84 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --background: 0 0% 98%; /* Light gray, almost white */
+    --foreground: 0 0% 3.9%; /* Default dark text, will be overridden by black */
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 0 0% 3.9%; /* Default dark text, will be overridden by black */
+    --popover: 0 0% 100%; /* White */
+    --popover-foreground: 0 0% 3.9%; /* Default dark text, will be overridden by black */
+    --primary: 141 56% 40%; /* Dark Green #1DB954 */
+    --primary-foreground: 0 0% 100%; /* White */
+    --secondary: 141 40% 90%; /* Lighter, desaturated green */
+    --secondary-foreground: 141 56% 25%; /* Darker green text on secondary */
+    --muted: 141 30% 95%; /* Very light, desaturated green */
+    --muted-foreground: 141 25% 45%; /* Desaturated green for muted text */
+    --accent: 120 100% 85%; /* Light Green #B3FFB3 */
+    --accent-foreground: 0 0% 0%; /* Black text on Light Green accents */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --border: 141 20% 88%; /* Light green-ish border */
+    --input: 141 20% 96%; /* Very light green-ish input background */
+    --ring: 141 56% 40%; /* Dark Green for focus rings */
+    --chart-1: 141 56% 40%; /* Dark Green */
+    --chart-2: 120 70% 60%; /* Lighter Green */
+    --chart-3: 141 40% 55%; /* Medium Green */
+    --chart-4: 120 80% 75%; /* Very Light Green */
+    --chart-5: 141 30% 70%; /* Muted Green */
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Custom: Ensure black text where specified */
+    --text-black: 0 0% 0%;
+    
+    /* Sidebar specific theme variables (Dark Theme for Sidebar) */
+    --sidebar-background: 141 56% 20%; /* Dark shade of primary green */
+    --sidebar-foreground: 0 0% 95%; /* Light text for readability */
+    --sidebar-primary: 120 100% 85%; /* Light Green for active/primary items */
+    --sidebar-primary-foreground: 141 56% 15%; /* Very Dark Green text on light green active items */
+    --sidebar-accent: 141 56% 28%; /* Slightly lighter dark green for hover/accent */
+    --sidebar-accent-foreground: 0 0% 98%; /* Light text */
+    --sidebar-border: 141 56% 25%; /* Border within sidebar */
+    --sidebar-ring: 120 100% 85%; /* Light Green for focus rings within sidebar */
   }
+
   .dark {
+    /* For consistency, we'll define a dark theme, though the app primarily uses a light theme with a dark sidebar */
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
     --card-foreground: 0 0% 98%;
     --popover: 0 0% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
+    --primary: 141 50% 50%; /* Adjusted Dark Green for dark theme */
+    --primary-foreground: 0 0% 100%; 
+    --secondary: 141 30% 15%; 
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
+    --muted: 141 20% 10%;
     --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 120 80% 70%; /* Adjusted Light Green for dark theme */
+    --accent-foreground: 0 0% 0%; 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 141 20% 20%;
+    --input: 141 20% 15%;
+    --ring: 141 50% 50%;
+    --chart-1: 141 50% 50%;
+    --chart-2: 120 60% 50%;
+    --chart-3: 141 35% 40%;
+    --chart-4: 120 70% 60%;
+    --chart-5: 141 25% 55%;
+
+    --text-black: 0 0% 98%; /* In dark mode, "black" text becomes light */
+
+    /* Dark theme Sidebar variables (can be same as default sidebar if it's always dark) */
+    --sidebar-background: 141 56% 20%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 120 100% 85%;
+    --sidebar-primary-foreground: 141 56% 15%;
+    --sidebar-accent: 141 56% 28%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 141 56% 25%;
+    --sidebar-ring: 120 100% 85%;
   }
 }
 
@@ -84,5 +95,22 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    color: hsl(var(--text-black)); /* Apply black text by default */
+  }
+  /* Ensure headings and other specific elements also use black text if not overridden */
+  h1, h2, h3, h4, h5, h6 {
+    color: hsl(var(--text-black));
   }
 }
+
+/* Ensure components use the black text color where appropriate */
+.text-card-foreground {
+  color: hsl(var(--text-black));
+}
+.text-popover-foreground {
+  color: hsl(var(--text-black));
+}
+.text-muted-foreground {
+   color: hsl(var(--muted-foreground)); /* Use the specific muted foreground */
+}
+/* Other specific overrides might be needed depending on component usage */
