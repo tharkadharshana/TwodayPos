@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getUserDocument } from '@/lib/firestoreUtils'; // createInitialStoreForUser is used in register-form
+import { getUserDocument } from '@/lib/firestoreUtils'; 
 import type { UserDocument } from '@/types';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -33,26 +33,22 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         try {
           let firestoreUserDoc = await getUserDocument(firebaseUser.uid);
           if (!firestoreUserDoc) {
-            // This case is primarily handled during registration.
-            // If a user is authenticated but has no userDoc, it implies an issue
-            // during registration or a manual data inconsistency.
-            // The registration flow in `register-form.tsx` is responsible for creating
-            // the store and user document.
-            console.warn(`User document not found for UID: ${firebaseUser.uid}. This user might need to complete registration or setup, or there might be a data inconsistency.`);
+            console.warn(`User document not found for UID: ${firebaseUser.uid} in UserContext. This usually means the registration process didn't complete Firestore writes or the document was deleted. User: ${firebaseUser.email}`);
             toast({
-                title: "Account Incomplete",
-                description: "Your user profile is incomplete. Some features may not work as expected. Please try re-logging or contact support.",
+                title: "Account Setup Incomplete",
+                description: `User profile for ${firebaseUser.email} not found in database. Try logging out and registering again, or contact support if this persists.`,
                 variant: "destructive",
+                duration: 10000, // Keep message longer
             });
             setUserDoc(null); 
           } else {
             setUserDoc(firestoreUserDoc);
           }
         } catch (error) {
-          console.error("Error fetching user document:", error);
+          console.error("Error fetching user document in UserContext:", error);
           toast({
-            title: "Error",
-            description: "Could not load your user profile.",
+            title: "Profile Load Error",
+            description: "Could not load your user profile data.",
             variant: "destructive",
           });
           setUserDoc(null);

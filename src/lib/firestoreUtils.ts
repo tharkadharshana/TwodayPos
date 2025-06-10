@@ -16,7 +16,7 @@ import {
   limit,
   runTransaction
 } from "firebase/firestore";
-import { db } from "./firebase"; // Import the initialized db instance
+import { db } from "./firebase"; 
 import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem } from "@/types";
 
 // --- User and Store Management ---
@@ -24,18 +24,20 @@ import type { Product, Customer, Transaction, Store, UserDocument, TransactionIt
 export const createInitialStoreForUser = async (
   userId: string,
   email: string,
-  displayNameInput?: string
+  displayNameInput?: string // Now expecting this from registration form
 ): Promise<{ storeId: string; userDocId: string }> => {
   const batch = writeBatch(db);
 
   // 1. Create Store Document
   const storeRef = doc(collection(db, "stores"));
   const storeId = storeRef.id;
-  const storeDisplayName = displayNameInput || email.split("@")[0] || `User_${userId.substring(0,5)}`;
+  
+  // Use provided displayName or fallback to email prefix
+  const storeNameBase = displayNameInput || email.split("@")[0] || `User_${userId.substring(0,5)}`;
 
   const newStore: Store = {
     id: storeId,
-    name: `${storeDisplayName}'s Store`,
+    name: `${storeNameBase}'s Store`,
     ownerId: userId,
     address: {
       street: "",
@@ -78,12 +80,12 @@ export const createInitialStoreForUser = async (
   const newUserDoc: UserDocument = {
     uid: userId,
     email: email,
-    displayName: storeDisplayName,
-    role: "admin",
-    storeId: storeId, // Link user to the newly created store
-    avatarUrl: "",
+    displayName: displayNameInput || email.split("@")[0] || "New User", // Use input or fallback
+    role: "admin", // Default role for new users
+    storeId: storeId, 
+    avatarUrl: "", // Initialize as empty string
     createdAt: serverTimestamp() as Timestamp,
-    lastLoginAt: serverTimestamp() as Timestamp, // Can be updated on actual login
+    lastLoginAt: serverTimestamp() as Timestamp,
     isActive: true,
   };
   batch.set(userRef, newUserDoc);
@@ -102,35 +104,32 @@ export const getUserDocument = async (userId: string): Promise<UserDocument | nu
   const userRef = doc(db, "users", userId);
   const userSnap = await getDoc(userRef);
   if (userSnap.exists()) {
-    // Ensure all optional fields are at least present as undefined or null if not in data
     const data = userSnap.data();
     return {
       uid: userSnap.id,
       email: data.email,
       displayName: data.displayName || "",
-      role: data.role,
-      storeId: data.storeId,
+      role: data.role || "cashier", // Default to cashier if role is missing
+      storeId: data.storeId || null, // Handle if storeId might be missing
       createdAt: data.createdAt,
-      lastLoginAt: data.lastLoginAt, // Will be undefined if not set
-      isActive: data.isActive,
+      lastLoginAt: data.lastLoginAt,
+      isActive: data.isActive === undefined ? true : data.isActive, // Default to true
       avatarUrl: data.avatarUrl || "",
-      ...data, // Spread last to ensure all fields from data are included
     } as UserDocument;
   }
   console.warn(`User document not found for UID: ${userId} in getUserDocument.`);
   return null;
 };
 
-export const getStoreDetails = async (storeId: string): Promise<Store | null> => {
+export const getStoreDetails = async (storeId: string | null): Promise<Store | null> => {
   if (!storeId) {
-    console.warn("getStoreDetails called without a storeId.");
+    console.warn("getStoreDetails called with a null or undefined storeId.");
     return null;
   }
   const storeRef = doc(db, "stores", storeId);
   const storeSnap = await getDoc(storeRef);
   if (storeSnap.exists()) {
     const data = storeSnap.data();
-    // Ensure all fields from the Store type are mapped, providing defaults for missing optional fields
     return {
         id: storeSnap.id,
         name: data.name || "Unnamed Store",
@@ -195,7 +194,7 @@ export const addProduct = async (storeId: string, productData: Omit<Product, "id
     stockQuantity: productData.stockQuantity,
     category: productData.category,
     imageUrl: productData.imageUrl || "",
-    isVisibleOnPOS: productData.isVisibleOnPOS,
+    isVisibleOnPOS: productData.isVisibleOnPOS === undefined ? true : productData.isVisibleOnPOS,
     lowStockThreshold: productData.lowStockThreshold || 0,
     description: productData.description || "",
     supplier: productData.supplier || "",
@@ -210,9 +209,9 @@ export const addProduct = async (storeId: string, productData: Omit<Product, "id
   return newProductRef.id;
 };
 
-export const getProductsByStoreId = async (storeId: string | undefined): Promise<Product[]> => {
+export const getProductsByStoreId = async (storeId: string | null): Promise<Product[]> => {
   if (!storeId) {
-    console.warn("getProductsByStoreId called without a storeId. Returning empty array.");
+    console.warn("getProductsByStoreId called with a null or undefined storeId. Returning empty array.");
     return [];
   }
   const productsCollection = collection(db, "products");
@@ -226,7 +225,7 @@ export const updateProduct = async (productId: string, data: Partial<Product>): 
     throw new Error("updateProduct called without a productId.");
   }
   const productRef = doc(db, "products", productId);
-  const { storeId, ...updateDataSafe } = data;
+  const { storeId, ...updateDataSafe } = data; // Ensure storeId is not accidentally updated
   await updateDoc(productRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -261,6 +260,7 @@ export const addCustomer = async (storeId: string, customerData: Omit<Customer, 
     totalSpent: 0,
     // lastPurchaseAt will be set upon first purchase
     notes: customerData.notes || "",
+    birthday: customerData.birthday || "",
     createdAt: serverTimestamp() as Timestamp,
     lastUpdatedAt: serverTimestamp() as Timestamp,
   };
@@ -268,9 +268,9 @@ export const addCustomer = async (storeId: string, customerData: Omit<Customer, 
   return newCustomerRef.id;
 };
 
-export const getCustomersByStoreId = async (storeId: string | undefined): Promise<Customer[]> => {
+export const getCustomersByStoreId = async (storeId: string | null): Promise<Customer[]> => {
   if (!storeId) {
-    console.warn("getCustomersByStoreId called without a storeId. Returning empty array.");
+    console.warn("getCustomersByStoreId called with a null or undefined storeId. Returning empty array.");
     return [];
   }
   const customersCollection = collection(db, "customers");
@@ -284,7 +284,7 @@ export const updateCustomer = async (customerId: string, data: Partial<Customer>
     throw new Error("updateCustomer called without a customerId.");
   }
   const customerRef = doc(db, "customers", customerId);
-  const { storeId, ...updateDataSafe } = data;
+  const { storeId, ...updateDataSafe } = data; // Ensure storeId is not accidentally updated
   await updateDoc(customerRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -302,7 +302,7 @@ export const deleteCustomer = async (customerId: string): Promise<void> => {
 
 // --- Transaction Management ---
 export const addTransaction = async (
-  storeId: string,
+  storeId: string | null,
   cashierId: string,
   cashierName: string | undefined,
   cartItems: TransactionItem[],
@@ -327,7 +327,7 @@ export const addTransaction = async (
 
   try {
     await runTransaction(db, async (firestoreTransaction) => {
-      const transactionData: Omit<Transaction, "id" | "lastUpdatedAt"> & { lastUpdatedAt: Timestamp } = {
+      const transactionData: Omit<Transaction, "id" | "lastUpdatedAt"> & { lastUpdatedAt: Timestamp } = { // Ensure all fields present
         storeId,
         transactionDisplayId: newTransactionRef.id.substring(0, 8).toUpperCase(),
         timestamp: serverTimestamp() as Timestamp,
@@ -335,20 +335,21 @@ export const addTransaction = async (
         cashierName: cashierName || "N/A",
         items: cartItems,
         subtotal,
-        discountAmount: 0,
+        discountAmount: 0, // Default
         taxAmount,
         totalAmount,
         paymentMethod,
-        paymentStatus: "completed",
+        paymentStatus: "completed", // Default
         customerId: customerId || "",
         customerName: customerName || "",
-        digitalReceiptSent: false,
-        receiptChannel: null,
-        receiptRecipient: null,
-        offlineProcessed: false,
-        notes: "",
-        originalTransactionId: "",
-        refundReason: "",
+        digitalReceiptSent: false, // Default
+        receiptChannel: null, // Default
+        receiptRecipient: null, // Default
+        offlineProcessed: false, // Default
+        syncedAt: undefined, // Default
+        notes: "", // Default
+        originalTransactionId: "", // Default
+        refundReason: "", // Default
         lastUpdatedAt: serverTimestamp() as Timestamp,
       };
       firestoreTransaction.set(newTransactionRef, transactionData);
@@ -376,7 +377,7 @@ export const addTransaction = async (
         if (customerSnap.exists()) {
             const currentTotalSpent = customerSnap.data().totalSpent || 0;
             const currentLoyaltyPoints = customerSnap.data().loyaltyPoints || 0;
-            const pointsEarned = Math.floor(totalAmount);
+            const pointsEarned = Math.floor(totalAmount); // Example: 1 point per dollar spent
             firestoreTransaction.update(customerRef, {
                  totalSpent: currentTotalSpent + totalAmount,
                  loyaltyPoints: currentLoyaltyPoints + pointsEarned,
@@ -389,14 +390,14 @@ export const addTransaction = async (
     return newTransactionRef.id;
   } catch (error) {
     console.error("Transaction failed: ", error);
-    throw error;
+    throw error; // Re-throw to be caught by the caller
   }
 };
 
 
-export const getTransactionsByStoreId = async (storeId: string | undefined, count: number = 50): Promise<Transaction[]> => {
+export const getTransactionsByStoreId = async (storeId: string | null, count: number = 50): Promise<Transaction[]> => {
   if (!storeId) {
-    console.warn("getTransactionsByStoreId called without a storeId. Returning empty array.");
+    console.warn("getTransactionsByStoreId called with a null or undefined storeId. Returning empty array.");
     return [];
   }
   const transactionsCollection = collection(db, "transactions");
@@ -409,4 +410,3 @@ export const getTransactionsByStoreId = async (storeId: string | undefined, coun
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
 };
-

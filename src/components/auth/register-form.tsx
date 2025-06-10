@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { Mail, Lock, UserPlus } from "lucide-react";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { Mail, Lock, UserPlus, User as UserIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { auth as firebaseAuth } from "@/lib/firebase";
+import { createInitialStoreForUser } from "@/lib/firestoreUtils";
 
 const registerFormSchema = z
   .object({
+    displayName: z.string().min(1, { message: "Display name is required." }),
     email: z.string().email({ message: "Please enter a valid email." }),
     password: z
       .string()
@@ -46,6 +48,7 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
   const form = useForm<RegisterFormValue>({
     resolver: zodResolver(registerFormSchema),
     defaultValues: {
+      displayName: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -55,7 +58,15 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
   const onSubmit = async (data: RegisterFormValue) => {
     setIsLoading(true);
     try {
-      await createUserWithEmailAndPassword(firebaseAuth, data.email, data.password);
+      const userCredential = await createUserWithEmailAndPassword(firebaseAuth, data.email, data.password);
+      const firebaseUser = userCredential.user;
+
+      // Update Firebase Auth profile
+      await updateProfile(firebaseUser, { displayName: data.displayName });
+
+      // Create Firestore documents (user and store)
+      await createInitialStoreForUser(firebaseUser.uid, data.email, data.displayName);
+
       toast({
         title: "Registration Successful",
         description: "Your account has been created. Please log in.",
@@ -67,6 +78,8 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
         errorMessage = "This email address is already in use.";
       } else if (error.code === "auth/weak-password") {
         errorMessage = "The password is too weak.";
+      } else if (error.message.includes("Firestore") || error.message.includes("permissions")) {
+        errorMessage = "Could not set up your store. Please ensure Firestore is enabled and rules allow access. Contact support if this persists.";
       }
       console.error("Registration error:", error);
       toast({
@@ -83,6 +96,22 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
     <div className={cn("grid gap-6", className)} {...props}>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="displayName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-text-black">Display Name</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Your Name" {...field} className="pl-10" />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           <FormField
             control={form.control}
             name="email"
