@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -28,7 +29,7 @@ import { siteConfig, mainNavItems, settingsNavItems, type NavItem } from "@/conf
 import { UserNav } from "@/components/layout/user-nav";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Wifi, WifiOff } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -49,12 +50,8 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
       return (
         <SidebarMenuItem key={index}>
           <SidebarMenuButton
-            // @ts-ignore // TODO: Fix this type issue with SidebarMenuButton if it's a real problem
-            // For now, assuming it accepts 'isActive' or similar prop based on typical usage pattern
-            // Or rely on data-active for styling if that's how the component is designed
             className={cn(isActiveParent && "bg-sidebar-accent text-sidebar-accent-foreground")}
             isActive={isActiveParent}
-            // variant={isActiveParent ? "secondary" : "ghost"} // Assuming 'secondary' is styled as active
             tooltip={item.title}
           >
             <item.icon className="h-5 w-5" />
@@ -104,8 +101,8 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
 
 
 function SyncStatusIndicator() {
-  const [isOnline, setIsOnline] = React.useState(true); // Default to online
-  const [pendingSyncCount, setPendingSyncCount] = React.useState(0); // Example state
+  const [isOnline, setIsOnline] = React.useState(true); 
+  const [pendingSyncCount, setPendingSyncCount] = React.useState(0); 
 
   React.useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -113,9 +110,13 @@ function SyncStatusIndicator() {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    setIsOnline(navigator.onLine); // Set initial state
+    
+    // Check initial status
+    if (typeof navigator !== "undefined" && typeof navigator.onLine === "boolean") {
+      setIsOnline(navigator.onLine);
+    }
 
-    // Simulate pending sync items for demo
+
     const intervalId = setInterval(() => {
       if (isOnline && pendingSyncCount > 0) {
         setPendingSyncCount(prev => Math.max(0, prev - 1));
@@ -145,7 +146,7 @@ function SyncStatusIndicator() {
     }
   } else if (pendingSyncCount > 0) {
     statusText = `Syncing ${pendingSyncCount} items...`;
-    Icon = Wifi; // Or a specific syncing icon
+    Icon = Wifi; 
     iconColor = "text-blue-500 animate-pulse";
   }
   // TODO: Add actual error state
@@ -169,8 +170,8 @@ function SyncStatusIndicator() {
   );
 }
 
-
-export function AppShell({ children }: AppShellProps) {
+// Internal component to house the main shell structure and use sidebar context
+function AppShellInternal({ children }: AppShellProps) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
 
@@ -180,13 +181,11 @@ export function AppShell({ children }: AppShellProps) {
     }
   };
 
-  // Determine which nav items to show (main or settings)
   const currentNavItems = pathname.startsWith("/settings") ? settingsNavItems : mainNavItems;
   const navTitle = pathname.startsWith("/settings") ? "Settings Menu" : "Main Menu";
 
-
   return (
-    <SidebarProvider defaultOpen={true} >
+    <>
       <Sidebar collapsible="icon" className="border-r border-sidebar-border">
         <SidebarHeader className="p-4 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2" onClick={closeMobileSidebar}>
@@ -208,7 +207,6 @@ export function AppShell({ children }: AppShellProps) {
               </SidebarMenu>
             </SidebarGroup>
             
-            {/* Show settings nav items if not on settings page, or main if on settings page for easy toggle */}
             {!pathname.startsWith("/settings") && (
                <SidebarGroup className="p-2 mt-4">
                 <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">System</SidebarGroupLabel>
@@ -225,8 +223,6 @@ export function AppShell({ children }: AppShellProps) {
                   </SidebarMenu>
               </SidebarGroup>
             )}
-
-
           </SidebarContent>
         </ScrollArea>
         <SidebarFooter className="p-4 flex items-center justify-between border-t border-sidebar-border">
@@ -238,20 +234,28 @@ export function AppShell({ children }: AppShellProps) {
       </Sidebar>
       <SidebarInset className="flex flex-col">
         <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6 md:justify-end">
-          <div className="md:hidden"> {/* Only show trigger on mobile if sidebar is icon-collapsible */}
+          <div className="md:hidden"> 
             <SidebarTrigger />
           </div>
           <div className="flex items-center gap-4">
-             <div className="hidden md:block"> {/* Sync indicator for desktop header */}
+             <div className="hidden md:block"> 
                 <SyncStatusIndicator />
              </div>
-             <UserNav /> {/* Also show UserNav in header for desktop */}
+             <UserNav /> 
           </div>
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
           {children}
         </main>
       </SidebarInset>
+    </>
+  );
+}
+
+export function AppShell({ children }: AppShellProps) {
+  return (
+    <SidebarProvider defaultOpen={true}>
+      <AppShellInternal>{children}</AppShellInternal>
     </SidebarProvider>
   );
 }
