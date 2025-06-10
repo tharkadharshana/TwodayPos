@@ -249,9 +249,9 @@ export default function SalesPage() {
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
   
-  const calculateDiscount = (currentSubtotal: number, promo: string | null): number => {
-    if (!promo) return 0;
-    const promoDetails = HARDCODED_PROMO_CODES[promo.toUpperCase()];
+  const calculateDiscount = (currentSubtotal: number, promoKey: string | null): number => {
+    if (!promoKey) return 0;
+    const promoDetails = HARDCODED_PROMO_CODES[promoKey.toUpperCase()];
     if (!promoDetails) return 0;
 
     let discount = 0;
@@ -260,11 +260,16 @@ export default function SalesPage() {
     } else if (promoDetails.type === 'percentage') {
       discount = currentSubtotal * promoDetails.value;
     }
-    return Math.min(discount, currentSubtotal); 
+    return Math.min(discount, currentSubtotal); // Discount cannot exceed subtotal
   };
 
-  const actualDiscountApplied = calculateDiscount(subtotal, appliedPromoCode);
-  const subtotalAfterDiscount = subtotal - actualDiscountApplied;
+  // Recalculate discount whenever subtotal or appliedPromoCode changes
+  React.useEffect(() => {
+    setAppliedDiscountAmount(calculateDiscount(subtotal, appliedPromoCode));
+  }, [subtotal, appliedPromoCode]);
+
+
+  const subtotalAfterDiscount = subtotal - appliedDiscountAmount;
   const tax = subtotalAfterDiscount * taxRate;
   const total = subtotalAfterDiscount + tax;
   const changeDue = selectedPaymentMethod === 'cash' ? Math.max(0, parseFloat(amountTendered || "0") - total) : 0;
@@ -285,7 +290,14 @@ export default function SalesPage() {
     );
 
 
-  const handleApplyPromoCode = () => {
+  const handleApplyOrRemovePromoCode = () => {
+    if (appliedPromoCode && promoCodeInput === "") { // Condition to remove
+        setAppliedPromoCode(null);
+        setAppliedDiscountAmount(0);
+        toast({ title: "Promo Removed", description: "Discount has been removed from the order."});
+        return;
+    }
+
     const code = promoCodeInput.trim().toUpperCase();
     if (!code) {
         toast({ title: "No Code", description: "Please enter a promo code.", variant: "default"});
@@ -295,13 +307,14 @@ export default function SalesPage() {
     if (promoDetails) {
         const calculatedDisc = calculateDiscount(subtotal, code);
         setAppliedPromoCode(code);
-        setAppliedDiscountAmount(calculatedDisc);
+        setAppliedDiscountAmount(calculatedDisc); // This will also be set by the useEffect, but good to set here too.
         toast({ title: "Promo Applied!", description: `Code "${code}" (${promoDetails.description || ''}) applied.`});
         setPromoCodeInput("");
     } else {
         toast({ title: "Invalid Code", description: `Promo code "${code}" is not valid.`, variant: "destructive"});
-        setAppliedPromoCode(null);
-        setAppliedDiscountAmount(0);
+        // Do not clear an existing valid promo if an invalid one is entered
+        // setAppliedPromoCode(null); 
+        // setAppliedDiscountAmount(0);
     }
   };
 
@@ -354,14 +367,16 @@ export default function SalesPage() {
         userDoc.displayName,
         cartItems, 
         subtotal,
-        tax,
+        tax, // tax is calculated on subtotalAfterDiscount
         total,
         selectedPaymentMethod || "other", 
         selectedCustomerId,
         customerForTx?.name,
+        appliedDiscountAmount, // Pass the discount amount
+        appliedPromoCode // Pass the promo code key
       );
       toast({ title: "Sale Finalized!", description: "Transaction saved." });
-      resetTerminalState(true, true); // Reset customer too for a fully new sale
+      resetTerminalState(true, true); 
       
         const [refreshedProducts, refreshedServices] = await Promise.all([
             getProductsByStoreId(userDoc.storeId),
@@ -390,7 +405,7 @@ export default function SalesPage() {
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomerId(customer.id);
     setSelectedCustomerName(customer.name);
-    setReceiptRecipient(customer.email || customer.phone || "");
+    setReceiptRecipient(customer.email || customer.phone || ""); // Pre-fill for receipt step
     setIsCustomerModalOpen(false);
     setCustomerSearchTerm("");
     toast({ title: "Customer Assigned", description: `${customer.name} assigned to this transaction.`});
@@ -399,7 +414,7 @@ export default function SalesPage() {
   const handleClearCustomer = () => {
     setSelectedCustomerId(undefined);
     setSelectedCustomerName(undefined);
-    setReceiptRecipient("");
+    setReceiptRecipient(""); // Clear pre-fill
     toast({ title: "Customer Cleared", description: "Customer unassigned from transaction."});
   };
 
@@ -415,6 +430,10 @@ export default function SalesPage() {
   const isItemInCart = (itemId: string, itemType: 'product' | 'service') => {
     return cartItems.some(cartItem => cartItem.productId === itemId && cartItem.itemType === itemType);
   }
+
+  const promoButtonText = appliedPromoCode && promoCodeInput === "" ? "Remove Promo" : "Apply Promo";
+  const promoButtonDisabled = (promoButtonText === "Apply Promo" && (!promoCodeInput || subtotal === 0)) || (promoButtonText === "Remove Promo" && !appliedPromoCode);
+
 
   return (
     <div className="flex h-[calc(100vh-theme(spacing.16)-theme(spacing.16))] max-h-[calc(100vh-theme(spacing.16)-theme(spacing.16))] overflow-hidden">
@@ -579,7 +598,9 @@ export default function SalesPage() {
                     <Label htmlFor="promo-code" className="text-xs text-muted-foreground">Promo Code</Label>
                     <Input id="promo-code" placeholder="Enter code" className="h-10" value={promoCodeInput} onChange={(e) => setPromoCodeInput(e.target.value)} />
                 </div>
-                <Button onClick={handleApplyPromoCode} className="h-10 shrink-0" disabled={!promoCodeInput || subtotal === 0}>Apply Promo</Button>
+                <Button onClick={handleApplyOrRemovePromoCode} className="h-10 shrink-0" disabled={promoButtonDisabled}>
+                  {promoButtonText}
+                </Button>
             </div>
             
             <div className="mb-2">
@@ -650,10 +671,10 @@ export default function SalesPage() {
                     <span className="text-muted-foreground">Subtotal</span>
                     <span className="font-medium text-foreground">${subtotal.toFixed(2)}</span>
                 </div>
-                {appliedDiscountAmount > 0 && (
+                {appliedDiscountAmount > 0 && appliedPromoCode && (
                     <div className="flex justify-between text-destructive">
-                        <span className="text-destructive">Discount ({HARDCODED_PROMO_CODES[appliedPromoCode!]?.description || appliedPromoCode})</span>
-                        <span className="font-medium text-destructive">-${actualDiscountApplied.toFixed(2)}</span>
+                        <span className="text-destructive">Discount ({HARDCODED_PROMO_CODES[appliedPromoCode.toUpperCase()]?.description || appliedPromoCode})</span>
+                        <span className="font-medium text-destructive">-${appliedDiscountAmount.toFixed(2)}</span>
                     </div>
                 )}
                 <div className="flex justify-between">
@@ -767,5 +788,3 @@ export default function SalesPage() {
     </div>
   );
 }
-
-    

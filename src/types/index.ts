@@ -62,20 +62,20 @@ export type Customer = {
 };
 
 export type CartItem = {
-  productId: string; // Could be product or service ID in future
-  itemType?: 'product' | 'service'; // To distinguish
+  productId: string; 
+  itemType?: 'product' | 'service'; 
   name: string; 
-  sku?: string; // Products have SKUs, services might not
+  sku?: string; 
   quantity: number;
   price: number; 
   totalPrice: number; 
   imageUrl?: string; 
-  stockQuantity?: number; // Relevant for products
-  durationMinutes?: number; // Relevant for services
+  stockQuantity?: number; 
+  durationMinutes?: number; 
 };
 
 export type TransactionItem = {
-  itemId: string; // Product or Service ID
+  itemId: string; 
   itemType: 'product' | 'service';
   name: string; 
   sku?: string; 
@@ -85,17 +85,18 @@ export type TransactionItem = {
 };
 
 export type Transaction = {
-  id: string; // Firestore document ID
+  id: string; 
   storeId: string;
   transactionDisplayId?: string; 
   timestamp: Timestamp;
-  cashierId: string; // User UID
+  cashierId: string; 
   cashierName?: string; 
   customerId?: string;
   customerName?: string; 
   items: TransactionItem[];
   subtotal: number;
   discountAmount: number;
+  promoCode?: string | null; // Added to store the applied promo code key
   taxAmount: number;
   totalAmount: number;
   paymentMethod: 'cash' | 'card' | 'mobile' | 'other' | string; 
@@ -104,7 +105,7 @@ export type Transaction = {
   receiptChannel?: 'whatsapp' | 'sms' | 'email' | null;
   receiptRecipient?: string | null;
   offlineProcessed?: boolean;
-  syncedAt?: Timestamp;
+  syncedAt?: Timestamp | null; // Allow null for not yet synced
   notes?: string;
   originalTransactionId?: string; 
   refundReason?: string;

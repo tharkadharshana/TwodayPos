@@ -315,7 +315,7 @@ export const addCustomer = async (storeId: string, customerData: Omit<Customer, 
     birthday: customerData.birthday || "",
     createdAt: serverTimestamp() as Timestamp,
     lastUpdatedAt: serverTimestamp() as Timestamp,
-    lastPurchaseAt: undefined, // Explicitly undefined, or null if preferred for Timestamps not yet set
+    lastPurchaseAt: undefined, 
   };
   await setDoc(newCustomerRef, fullCustomerData);
   return newCustomerRef.id;
@@ -364,7 +364,9 @@ export const addTransaction = async (
   totalAmount: number,
   paymentMethod: string,
   customerId?: string,
-  customerName?: string
+  customerName?: string,
+  discountAmountVal?: number, // Renamed to avoid conflict
+  promoCodeVal?: string | null // Renamed to avoid conflict
 ): Promise<string> => {
   if (!storeId) {
     throw new Error("addTransaction called without a storeId.");
@@ -384,7 +386,7 @@ export const addTransaction = async (
         itemId: item.productId,
         itemType: item.itemType || 'product',
         name: item.name,
-        sku: item.sku || "", // Ensure SKU is not undefined
+        sku: item.sku || "", 
         quantity: item.quantity,
         unitPrice: item.price,
         totalPrice: item.totalPrice,
@@ -399,7 +401,8 @@ export const addTransaction = async (
         cashierName: cashierName || "N/A",
         items: transactionItems,
         subtotal,
-        discountAmount: 0,
+        discountAmount: discountAmountVal || 0,
+        promoCode: promoCodeVal || null,
         taxAmount,
         totalAmount,
         paymentMethod,
@@ -410,7 +413,7 @@ export const addTransaction = async (
         receiptChannel: null,
         receiptRecipient: null,
         offlineProcessed: false,
-        syncedAt: null, // Changed from undefined to null
+        syncedAt: null, 
         notes: "",
         originalTransactionId: "",
         refundReason: "",
