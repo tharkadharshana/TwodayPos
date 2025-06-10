@@ -10,7 +10,7 @@ This document outlines the current features and functionalities implemented in t
 - **Tailwind CSS**: Utility-first CSS framework for styling.
 - **Firebase**: Backend platform, primarily using:
     - **Firestore**: NoSQL database for storing application data (products, transactions, users, store settings). Offline persistence is enabled via Firestore's `persistentLocalCache` (using IndexedDB), forming the backbone of the "Offline Friendly" mode.
-    - **Firebase Authentication**: For user login and registration.
+    - **Firebase Authentication**: For user login, registration, and admin-initiated password resets.
 - **Genkit (Firebase AI)**: Toolkit for integrating AI features (used for predictive inventory, with mock product data in forms).
 - **TypeScript**: For static typing and improved code quality.
 - **Zod**: For schema validation.
@@ -175,21 +175,20 @@ This document outlines the current features and functionalities implemented in t
     - Saves changes to the `Store` document in Firestore.
     - Accessible to `admin`, `manager`.
 - **User Management (`/settings/users`)**:
-    - Admins can view a list of users associated with their store.
-    - Admins can change the role (admin, manager, cashier) of other users in their store.
-    - Admins can activate or deactivate user accounts within their store.
-    - The currently logged-in admin cannot change their own role to non-admin or deactivate their own account.
-    - Adding new users from this page is a TODO (users are currently created via public registration).
-    - Accessible to `admin`.
+    - **Admin Access Only**: Page restricted to users with the 'admin' role.
+    - **List Users**: Admins can view a list of users associated with their store (name, email, role, status).
+    - **Create New Users**: Admins can add new users (manager, cashier) by defining their display name, email, initial password, and role.
+    - **Change Role**: Admins can change the role (admin, manager, cashier) of other users in their store. An admin cannot change their own role to non-admin.
+    - **Activate/Deactivate User**: Admins can activate or deactivate user accounts within their store. An admin cannot deactivate their own account.
+    - **Send Password Reset**: Admins can trigger a password reset email for any user in their store.
 - **Receipt Settings (`/settings/receipts`)**:
     - UI to customize digital receipts (logo upload placeholder, header/footer messages, display options, default SMS/Email messages).
     - Static preview. Saving settings and applying them is a TODO. "Send Test Receipt" is a placeholder.
     - Accessible to `admin`, `manager`.
 - **Offline & Sync Settings (`/settings/offline-sync`)**:
-    - Allows users to choose a data handling mode:
-        - **Offline Friendly (Recommended)**: Default. Leverages Firestore's built-in persistent cache.
-        - **Cloud Only (Strict Sync)**: See "Data Handling & Offline Support" section below.
+    - Allows users to choose a data handling mode: "Offline Friendly (Recommended)" or "Cloud Only (Strict Sync)".
     - The selected preference is saved to the `Store` document in Firestore and made available globally via `UserContext`.
+    - This choice influences how certain critical operations (add/edit product, finalize sale) handle server confirmation.
     - Accessible to `admin`, `manager`.
 - **Developer Tools (`/dev/populate-data`)**:
     - Page to populate dummy products, customers, and transactions.

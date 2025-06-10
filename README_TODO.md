@@ -5,14 +5,14 @@ This document lists features that are currently placeholders, partially implemen
 
 ## I. Major Features & Systems to Implement/Complete
 
-1.  **User Roles & Permissions (Full Implementation)**:
-    *   **Admin User Management UI (`/settings/users`)**:
-        *   **Add/Invite New Users**: Admins need a UI to invite/add new users (cashiers, managers) to their store. This involves deciding on an invitation flow (e.g., email invite, admin sets temporary password, or user registers and gets linked). Current system only allows new user registration to create new admins/stores.
-        *   **Send Password Reset**: Implement functionality for admins to trigger password resets for users (requires Firebase Admin SDK backend or careful client-side handling).
-    *   **Modify Registration**: Decide if public registration should continue to create new stores/admins, or shift to an invite-only system for adding users to existing stores.
+1.  **User Roles & Permissions (Further Enhancements)**:
+    *   **User Management UI (`/settings/users`)**:
+        *   **Password Policy for Admin-Created Users**: Prompt or require users created by an admin to change their initial password upon first login.
+        *   **Invitation System (Alternative to Direct Admin Creation)**: Consider an email-based invitation flow for adding new users, allowing them to set their own initial password.
+    *   **Modify Public Registration Flow**: Decide if public registration should continue to create new stores/admins indefinitely, or if it should shift to an invite-only system for adding users to existing stores once the platform matures.
     *   **Page-Level Access Control (Server-Side or Robust Client)**: While client-side navigation filtering is in place, robust page-level checks (ideally server-side or via Next.js middleware with user session checks) are needed to prevent direct URL access by unauthorized roles.
-    *   **Component-Level Access Control**: Conditionally render UI elements/actions *within* pages based on role more extensively (e.g., only managers see 'Edit Product' button on list page, cashiers can't access specific settings fields).
-    *   **Firestore Security Rules**: Implement comprehensive Firestore security rules to enforce data access and modification permissions for each role at the backend. This is critical for security and data integrity. (e.g., cashiers can only create transactions for their `storeId`, managers can update products in their `storeId`, admins can manage users in their `storeId`).
+    *   **Component-Level Access Control**: Conditionally render UI elements/actions *within* pages based on role more extensively (e.g., only managers see 'Edit Product' button on list page, cashiers can't access specific settings fields beyond what navigation hides).
+    *   **Firestore Security Rules**: Implement comprehensive Firestore security rules to enforce data access and modification permissions for each role at the backend. This is critical for security and data integrity. (e.g., cashiers can only create transactions for their `storeId`, managers can update products in their `storeId`, admins can manage users in their `storeId`). Example rules for User Management provided; need to be expanded for all collections.
 
 2.  **Payment Gateway Integration**:
     *   Integrate with real payment gateways (e.g., Stripe, Square) for actual card processing.
@@ -91,8 +91,7 @@ This document lists features that are currently placeholders, partially implemen
 
 ### H. Settings
 -   **User Management (`/settings/users`)**:
-    *   Implement the "Add New User" / Invitation flow.
-    *   Implement "Send Password Reset" functionality for users.
+    *   Implement a workflow to prompt/require users created by an admin to change their password on first login.
 -   **Store Settings (`/settings/store`)**:
     *   Implement actual logo file upload (e.g., to Firebase Cloud Storage) and update `logoUrl`.
 -   **Receipt Settings (`/settings/receipts`)**:
