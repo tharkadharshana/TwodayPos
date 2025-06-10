@@ -213,7 +213,7 @@ export const getProductsByStoreId = async (storeId: string | null): Promise<Prod
   const productsCollection = collection(db, "products");
   const q = query(productsCollection, where("storeId", "==", storeId), orderBy("name"));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Product));
 };
 
 export const updateProduct = async (productId: string, data: Partial<Product>): Promise<void> => {
@@ -221,7 +221,7 @@ export const updateProduct = async (productId: string, data: Partial<Product>): 
     throw new Error("updateProduct called without a productId.");
   }
   const productRef = doc(db, "products", productId);
-  const { storeId, ...updateDataSafe } = data;
+  const { storeId, ...updateDataSafe } = data; // Prevent storeId from being accidentally updated
   await updateDoc(productRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -329,7 +329,7 @@ export const getCustomersByStoreId = async (storeId: string | null): Promise<Cus
   const customersCollection = collection(db, "customers");
   const q = query(customersCollection, where("storeId", "==", storeId), orderBy("name"));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Customer));
 };
 
 export const updateCustomer = async (customerId: string, data: Partial<Customer>): Promise<void> => {
@@ -365,8 +365,8 @@ export const addTransaction = async (
   paymentMethod: string,
   customerId?: string,
   customerName?: string,
-  discountAmountVal?: number, // Renamed to avoid conflict
-  promoCodeVal?: string | null // Renamed to avoid conflict
+  discountAmountVal?: number, 
+  promoCodeVal?: string | null 
 ): Promise<string> => {
   if (!storeId) {
     throw new Error("addTransaction called without a storeId.");
@@ -383,7 +383,7 @@ export const addTransaction = async (
   try {
     await runTransaction(db, async (firestoreTransaction) => {
       const transactionItems: TransactionItem[] = cartItems.map(item => ({
-        itemId: item.productId,
+        itemId: item.productId, // Use productId as itemId consistently
         itemType: item.itemType || 'product',
         name: item.name,
         sku: item.sku || "", 
@@ -406,13 +406,13 @@ export const addTransaction = async (
         taxAmount,
         totalAmount,
         paymentMethod,
-        paymentStatus: "completed",
+        paymentStatus: "completed", // Default to completed, can be updated later for offline scenarios
         customerId: customerId || "",
         customerName: customerName || "",
-        digitalReceiptSent: false,
+        digitalReceiptSent: false, // Will be updated if sent
         receiptChannel: null,
         receiptRecipient: null,
-        offlineProcessed: false,
+        offlineProcessed: false, // Default to false
         syncedAt: null, 
         notes: "",
         originalTransactionId: "",
@@ -421,8 +421,9 @@ export const addTransaction = async (
       };
       firestoreTransaction.set(newTransactionRef, transactionData);
 
+      // Update product stock quantities
       for (const item of cartItems) {
-        if (item.itemType === 'product' || !item.itemType) {
+        if (item.itemType === 'product' || !item.itemType) { // Treat undefined itemType as product
           const productRef = doc(db, "products", item.productId);
           const productSnap = await firestoreTransaction.get(productRef);
 
@@ -434,19 +435,23 @@ export const addTransaction = async (
           const newStock = currentStock - item.quantity;
 
           if (newStock < 0) {
+            // This check should ideally happen before reaching this point, 
+            // but it's a good safeguard in the transaction.
             throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}, Requested: ${item.quantity}.`);
           }
           firestoreTransaction.update(productRef, { stockQuantity: newStock, lastUpdatedAt: serverTimestamp() });
         }
       }
 
+      // Update customer total spent and loyalty points if customerId is provided
       if (customerId) {
         const customerRef = doc(db, "customers", customerId);
         const customerSnap = await firestoreTransaction.get(customerRef);
         if (customerSnap.exists()) {
             const currentTotalSpent = customerSnap.data().totalSpent || 0;
             const currentLoyaltyPoints = customerSnap.data().loyaltyPoints || 0;
-            const pointsEarned = Math.floor(totalAmount);
+            // Example: 1 point per dollar spent
+            const pointsEarned = Math.floor(totalAmount); 
             firestoreTransaction.update(customerRef, {
                  totalSpent: currentTotalSpent + totalAmount,
                  loyaltyPoints: currentLoyaltyPoints + pointsEarned,
@@ -459,7 +464,8 @@ export const addTransaction = async (
     return newTransactionRef.id;
   } catch (error) {
     console.error("Transaction failed: ", error);
-    throw error;
+    // Potentially re-throw or handle specific error types (e.g., stock issue vs. network)
+    throw error; // Re-throw to be caught by the calling UI
   }
 };
 
@@ -477,5 +483,14 @@ export const getTransactionsByStoreId = async (storeId: string | null, count: nu
     limit(count)
   );
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Transaction));
 };
+
+// Placeholder for future updateTransaction, if needed for things like updating paymentStatus for offline sync
+// export const updateTransaction = async (transactionId: string, data: Partial<Transaction>): Promise<void> => {
+//   const transactionRef = doc(db, "transactions", transactionId);
+//   await updateDoc(transactionRef, {
+//     ...data,
+//     lastUpdatedAt: serverTimestamp(),
+//   });
+// };

@@ -9,17 +9,23 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, FileDown, FileUp, BotMessageSquare, DownloadCloud, UploadCloud } from "lucide-react"; // Added UploadCloud
+import { MoreHorizontal, PlusCircle, Search, FileDown, BotMessageSquare, DownloadCloud, UploadCloud, Edit2, History, Trash2, EyeOff, Eye, Loader2 } from "lucide-react"; // Added Trash2, Edit2, History, EyeOff, Eye, Loader2
 import type { Product } from "@/types";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
-
-const mockProducts: Product[] = [
-  { id: "1", name: "Espresso Beans", sku: "EB001", price: 15.99, stockQuantity: 120, category: "Coffee", isVisibleOnPOS: true, lowStockThreshold: 20, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 10, supplierLeadTimeDays: 3, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1", barcode: "123456789012", description: "Rich dark roast beans.", supplier: "Bean Co", tags: ["coffee", "dark roast"] },
-  { id: "2", name: "Organic Milk", sku: "MK002", price: 3.49, stockQuantity: 8, category: "Dairy", isVisibleOnPOS: true, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 2, supplierLeadTimeDays: 1, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1", barcode: "987654321098", description: "Fresh organic whole milk.", supplier: "Farm Fresh", historicalSalesData: {"2023-01": 50, "2023-02": 60} },
-  { id: "3", name: "Croissants (Box of 6)", sku: "PS003", price: 8.99, stockQuantity: 0, category: "Pastries", isVisibleOnPOS: true, lowStockThreshold: 5, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 5, supplierLeadTimeDays: 2, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
-  { id: "4", name: "Artisan Bread", sku: "BR004", price: 5.20, stockQuantity: 35, category: "Bakery", isVisibleOnPOS: false, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 3, supplierLeadTimeDays: 1, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
-];
+import { useUser } from "@/context/UserContext";
+import { getProductsByStoreId, deleteProduct } from "@/lib/firestoreUtils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 function getStockBadgeClasses(quantity: number, lowStockThreshold?: number): string {
   if (quantity === 0) return "bg-destructive text-destructive-foreground";
@@ -33,7 +39,6 @@ function getStockBadgeText(quantity: number, lowStockThreshold?: number): string
   return "In Stock";
 }
 
-// CSV Helper functions
 const escapeCSVField = (field: any): string => {
   if (field === null || field === undefined) {
     return "";
@@ -61,6 +66,10 @@ const convertToCSV = (data: Product[], headers: string[], isTemplate: boolean = 
         case 'historicalSalesData':
           value = product.historicalSalesData ? JSON.stringify(product.historicalSalesData) : '';
           break;
+        case 'createdAt':
+        case 'lastUpdatedAt':
+          value = (product as any)[header]?.toDate ? (product as any)[header].toDate().toISOString() : (product as any)[header];
+          break;
         default:
           value = (product as any)[header];
       }
@@ -87,13 +96,19 @@ const downloadCSV = (csvString: string, filename: string) => {
 
 
 export default function InventoryPage() {
+  const { userDoc } = useUser();
   const { toast } = useToast();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [products, setProducts] = React.useState<Product[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [isDeleting, setIsDeleting] = React.useState<string | null>(null);
 
   const csvHeaders = [
     "id", "name", "sku", "barcode", "price", "stockQuantity", "category", 
     "imageUrl", "isVisibleOnPOS", "lowStockThreshold", "description", 
-    "supplier", "tags", "salesVelocity", "historicalSalesData", "supplierLeadTimeDays"
+    "supplier", "tags", "salesVelocity", "historicalSalesData", "supplierLeadTimeDays",
+    "createdAt", "lastUpdatedAt"
   ];
   const templateHeaders = [
     "name", "sku", "barcode", "price", "stockQuantity", "category", 
@@ -101,13 +116,43 @@ export default function InventoryPage() {
     "supplier", "tags", "salesVelocity", "historicalSalesData", "supplierLeadTimeDays"
   ];
 
+  const fetchProducts = React.useCallback(async () => {
+    if (userDoc?.storeId) {
+      setIsLoading(true);
+      try {
+        const fetchedProducts = await getProductsByStoreId(userDoc.storeId);
+        setProducts(fetchedProducts);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        toast({ title: "Error", description: "Could not load products.", variant: "destructive" });
+      }
+      setIsLoading(false);
+    }
+  }, [userDoc?.storeId, toast]);
+
+  React.useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  const handleDeleteProduct = async (productId: string) => {
+    setIsDeleting(productId);
+    try {
+      await deleteProduct(productId);
+      toast({ title: "Success", description: "Product deleted successfully." });
+      fetchProducts(); 
+    } catch (error: any) {
+      console.error("Error deleting product:", error);
+      toast({ title: "Error", description: `Failed to delete product: ${error.message}`, variant: "destructive" });
+    }
+    setIsDeleting(null);
+  };
+
   const handleExportAll = () => {
-    const productsToExport = mockProducts; 
-    if (productsToExport.length === 0) {
+    if (products.length === 0) {
       toast({ title: "No Products", description: "There are no products to export.", variant: "default" });
       return;
     }
-    const csvString = convertToCSV(productsToExport, csvHeaders);
+    const csvString = convertToCSV(products, csvHeaders);
     downloadCSV(csvString, "all_products.csv");
     toast({ title: "Export Successful", description: "All products exported to all_products.csv" });
   };
@@ -127,23 +172,20 @@ export default function InventoryPage() {
     if (file) {
       toast({
         title: "File Selected",
-        description: `${file.name} ready for import. Actual import processing not yet implemented.`,
+        description: `${file.name} ready for import. Product import processing not yet implemented.`,
       });
-      // Reset file input value to allow selecting the same file again
       if(fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-      // TODO: Implement CSV parsing and data import logic here
-      // Example:
-      // const reader = new FileReader();
-      // reader.onload = (e) => {
-      //   const text = e.target?.result;
-      //   console.log(text);
-      //   // Parse CSV and process data
-      // };
-      // reader.readAsText(file);
+      // TODO: Implement CSV parsing and data import logic here for products
     }
   };
+
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.category.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -202,65 +244,114 @@ export default function InventoryPage() {
           <CardDescription className="text-muted-foreground">Manage your products, stock levels, and details.</CardDescription>
           <div className="relative mt-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search products..." className="pl-10 w-full md:w-1/3" />
+            <Input 
+                placeholder="Search products by name, SKU, category..." 
+                className="pl-10 w-full md:w-1/3"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[80px] hidden md:table-cell">Image</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead className="hidden md:table-cell">Category</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Stock</TableHead>
-                <TableHead className="hidden sm:table-cell">Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="hidden md:table-cell">
-                    <Image
-                      src={product.imageUrl || "https://placehold.co/40x40.png"}
-                      alt={product.name}
-                      width={40}
-                      height={40}
-                      className="rounded-md"
-                      data-ai-hint="product item"
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium text-foreground">{product.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{product.sku}</TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground">{product.category}</TableCell>
-                  <TableCell className="text-right text-foreground">${product.price.toFixed(2)}</TableCell>
-                  <TableCell className="text-right text-foreground">{product.stockQuantity}</TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    <Badge className={getStockBadgeClasses(product.stockQuantity, product.lowStockThreshold)}>
-                      {getStockBadgeText(product.stockQuantity, product.lowStockThreshold)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-popover text-popover-foreground">
-                        <DropdownMenuItem>Edit Product</DropdownMenuItem>
-                        <DropdownMenuItem>Adjust Stock</DropdownMenuItem>
-                        <DropdownMenuItem>View History</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive hover:!bg-destructive hover:!text-destructive-foreground">Delete</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex justify-center items-center py-10">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+          ) : filteredProducts.length === 0 ? (
+             <div className="text-center py-10 text-muted-foreground">
+                {searchTerm ? "No products match your search." : "No products found. Add your first product!"}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[80px] hidden md:table-cell">Image</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead className="hidden md:table-cell">Category</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-right">Stock</TableHead>
+                  <TableHead className="hidden sm:table-cell">Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredProducts.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell className="hidden md:table-cell">
+                      <Image
+                        src={product.imageUrl || "https://placehold.co/40x40.png"}
+                        alt={product.name}
+                        width={40}
+                        height={40}
+                        className="rounded-md object-cover"
+                        data-ai-hint="product item"
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium text-foreground">{product.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{product.sku}</TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground">{product.category}</TableCell>
+                    <TableCell className="text-right text-foreground">${product.price.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-foreground">{product.stockQuantity}</TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <Badge className={getStockBadgeClasses(product.stockQuantity, product.lowStockThreshold)}>
+                        {getStockBadgeText(product.stockQuantity, product.lowStockThreshold)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" disabled={isDeleting === product.id}>
+                            {isDeleting === product.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-popover text-popover-foreground">
+                          <DropdownMenuItem disabled> {/* TODO: Implement Edit Product Page */}
+                            <Edit2 className="mr-2 h-4 w-4" /> Edit Product
+                          </DropdownMenuItem>
+                          <DropdownMenuItem disabled> {/* TODO: Implement Adjust Stock */}
+                            <History className="mr-2 h-4 w-4" /> Adjust Stock 
+                          </DropdownMenuItem>
+                           <DropdownMenuItem disabled> {/* TODO: Implement View Product History */}
+                             <Eye className="mr-2 h-4 w-4" /> View History
+                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem 
+                                onSelect={(e) => e.preventDefault()} 
+                                className="text-destructive hover:!bg-destructive hover:!text-destructive-foreground"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Product
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete the product "{product.name}".
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteProduct(product.id)}
+                                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                >
+                                  {isDeleting === product.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
