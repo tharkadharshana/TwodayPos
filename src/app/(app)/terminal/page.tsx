@@ -111,6 +111,7 @@ export default function TerminalPage() {
       const fetchInitialData = async () => {
         setIsLoadingCatalog(true);
         try {
+          // For large catalogs, consider fetching only a subset initially or encourage search.
           const [fetchedProducts, fetchedServices, fetchedCustomers] = await Promise.all([
             getProductsByStoreId(userDoc.storeId),
             getServicesByStoreId(userDoc.storeId),
@@ -254,12 +255,12 @@ export default function TerminalPage() {
       setSelectedCustomerId(undefined);
       setSelectedCustomerName(undefined);
     }
-    setCurrentStep('order');
-    setSelectedPaymentMethod(null);
-    setAmountTendered("");
     setPromoCodeInput("");
     setAppliedPromoCode(null);
     setAppliedDiscountAmount(0);
+    setCurrentStep('order');
+    setSelectedPaymentMethod(null);
+    setAmountTendered("");
     setReceiptRecipient("");
     setReceiptSent(false);
     if (clearLastAction) {
@@ -445,7 +446,7 @@ export default function TerminalPage() {
   return (
     <div className="flex h-[calc(100vh-theme(spacing.16)-theme(spacing.16))] max-h-[calc(100vh-theme(spacing.16)-theme(spacing.16))] overflow-hidden">
       {/* Left Panel: Catalog Selection */}
-      <div className="flex-grow-[2] p-4 flex flex-col border-r border-border overflow-hidden basis-2/5 min-w-[320px]">
+      <div className="flex-grow-[2] p-4 flex flex-col border-r border-border basis-[40%] min-w-[300px] overflow-hidden">
         <div className="mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -483,7 +484,7 @@ export default function TerminalPage() {
                 No items found matching your criteria or inventory/services are empty.
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-4">
               {filteredCatalogItems.map(item => {
                 const itemIsInCart = isItemInCart(item.id, item.itemType);
                 const isOutOfStock = item.itemType === 'product' && item.stockQuantity <= 0;
@@ -518,7 +519,7 @@ export default function TerminalPage() {
       </div>
 
       {/* Center Panel: Active Cart & Transaction Summary */}
-      <div className="flex-grow-[2] p-4 flex flex-col border-r border-border bg-muted/20 dark:bg-muted/10 overflow-hidden basis-2/5 min-w-[300px] md:min-w-[360px]">
+      <div className="flex-grow-[2] p-4 flex flex-col border-r border-border bg-muted/20 dark:bg-muted/10 basis-[35%] min-w-[300px] overflow-hidden">
         <CardHeader className="p-0 pb-4">
           <CardTitle className="text-2xl font-headline flex items-center justify-between text-foreground">
             <div className="flex items-center"> <ShoppingBasket className="mr-2 h-6 w-6 text-primary"/> Current Order </div>
@@ -620,7 +621,7 @@ export default function TerminalPage() {
       </div>
 
       {/* Right Panel: Payment & Actions */}
-      <div className="flex-grow-[1] p-6 flex flex-col bg-card shadow-lg overflow-y-auto basis-1/5 min-w-[300px] md:min-w-[360px]">
+      <div className="flex-grow-[1] p-6 flex flex-col bg-card shadow-lg overflow-y-auto basis-[25%] min-w-[280px]">
         {currentStep === 'order' && ( <>
                 <h2 className="text-xl font-semibold mb-6 text-center text-foreground">Select Payment Method</h2>
                 <div className="grid grid-cols-1 gap-4 flex-grow content-start">
@@ -673,3 +674,4 @@ export default function TerminalPage() {
     </div>
   );
 }
+
