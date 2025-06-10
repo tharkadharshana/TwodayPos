@@ -25,18 +25,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Icons } from "@/components/icons";
-import { siteConfig, mainNavItems, settingsNavItems, type NavItem } from "@/config/site";
+import { siteConfig, mainNavItems, settingsNavItems, type NavItem, type UserRole } from "@/config/site";
 import { UserNav } from "@/components/layout/user-nav";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { cn } from "@/lib/utils";
 import { Wifi, WifiOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useUser } from "@/context/UserContext"; // Import useUser
 
 interface AppShellProps {
   children: React.ReactNode;
 }
 
-function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], currentPath: string, closeSidebar?: () => void }) {
+function NavMenuItems({ items, currentPath, userRole, closeSidebar }: { items: NavItem[], currentPath: string, userRole: UserRole | undefined, closeSidebar?: () => void }) {
   const { isMobile } = useSidebar();
 
   const handleLinkClick = () => {
@@ -45,9 +46,25 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
     }
   };
   
-  return items.map((item, index) => {
+  const filteredItems = items.filter(item => {
+    if (!item.allowedRoles) return userRole === 'admin'; // Default to admin if not specified
+    if (userRole) return item.allowedRoles.includes(userRole);
+    return false; // Don't show if no role or no allowedRoles
+  });
+
+  return filteredItems.map((item, index) => {
     if (item.items && item.items.length > 0) {
-      const isActiveParent = item.items.some(subItem => currentPath.startsWith(subItem.href));
+      // Filter sub-items as well
+      const visibleSubItems = item.items.filter(subItem => {
+        if (!subItem.allowedRoles) return userRole === 'admin';
+        if (userRole) return subItem.allowedRoles.includes(userRole);
+        return false;
+      });
+
+      if (visibleSubItems.length === 0) return null; // Don't render parent if no visible sub-items
+
+      const isActiveParent = visibleSubItems.some(subItem => currentPath.startsWith(subItem.href));
+      
       return (
         <SidebarMenuItem key={index}>
           <SidebarMenuButton
@@ -59,7 +76,7 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
             <span>{item.title}</span>
           </SidebarMenuButton>
           <SidebarMenuSub>
-            {item.items.map((subItem, subIndex) => (
+            {visibleSubItems.map((subItem, subIndex) => (
               <SidebarMenuSubItem key={subIndex}>
                 <Link href={subItem.href}>
                   <SidebarMenuSubButton
@@ -103,60 +120,55 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
 
 function SyncStatusIndicator() {
   const [isOnline, setIsOnline] = React.useState(true); 
-  const [pendingSyncCount, setPendingSyncCount] = React.useState(0); 
+  const [syncState, setSyncState] = React.useState<'synced' | 'syncing' | 'offline'>('synced');
 
   React.useEffect(() => {
     const updateOnlineStatus = () => {
-      setIsOnline(navigator.onLine);
+      const online = navigator.onLine;
+      setIsOnline(online);
+      if (online) {
+        // Simulate "syncing" for a brief period when coming back online
+        setSyncState('syncing');
+        const timer = setTimeout(() => setSyncState('synced'), 3000); // Simulate sync duration
+        return () => clearTimeout(timer);
+      } else {
+        setSyncState('offline');
+      }
     };
 
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
-    updateOnlineStatus(); // Initial check
-
-    let syncInterval: NodeJS.Timeout;
-    let offlineActivityInterval: NodeJS.Timeout;
-
-    if (isOnline) {
-      if (pendingSyncCount > 0) {
-        syncInterval = setInterval(() => {
-          setPendingSyncCount(prev => Math.max(0, prev - 1));
-        }, 2000); // Simulate syncing one item every 2 seconds
-      }
-    } else {
-      // Simulate occasional pending items when offline
-      offlineActivityInterval = setInterval(() => {
-        if (Math.random() < 0.2) { // 20% chance to add a pending item
-          setPendingSyncCount(prev => prev + 1);
-        }
-      }, 5000); // Check every 5 seconds
+    
+    // Initial check
+    if (typeof navigator !== 'undefined') {
+        updateOnlineStatus();
+    } else { // Default for SSR or environments without navigator
+        setIsOnline(true);
+        setSyncState('synced');
     }
     
-    // Clear intervals when component unmounts or dependencies change
     return () => {
       window.removeEventListener('online', updateOnlineStatus);
       window.removeEventListener('offline', updateOnlineStatus);
-      clearInterval(syncInterval);
-      clearInterval(offlineActivityInterval);
     };
-  }, [isOnline, pendingSyncCount]);
+  }, []);
 
 
-  let statusText = "Synced";
+  let statusText = "Online & Synced";
   let Icon = Wifi;
   let iconColorClass = "text-green-500 dark:text-green-400";
+  let tooltipMessage = "Your data is synced with the cloud.";
 
-  if (!isOnline) {
+  if (syncState === 'offline') {
     statusText = "Offline";
     Icon = WifiOff;
-    iconColorClass = "text-yellow-500 dark:text-yellow-400";
-    if (pendingSyncCount > 0) {
-      statusText = `Offline - ${pendingSyncCount} pending`;
-    }
-  } else if (pendingSyncCount > 0) {
-    statusText = `Syncing ${pendingSyncCount} items...`;
+    iconColorClass = "text-destructive";
+    tooltipMessage = "You are currently offline. Changes will be synced when connection is restored.";
+  } else if (syncState === 'syncing') {
+    statusText = "Syncing...";
     Icon = Wifi; 
-    iconColorClass = "text-sky-500 dark:text-sky-400 animate-pulse";
+    iconColorClass = "text-yellow-500 dark:text-yellow-400 animate-pulse";
+    tooltipMessage = "Syncing local changes with the cloud.";
   }
   
   return (
@@ -168,7 +180,7 @@ function SyncStatusIndicator() {
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top" className="bg-popover text-popover-foreground">
-          <p>{statusText}</p>
+          <p>{tooltipMessage}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -178,6 +190,7 @@ function SyncStatusIndicator() {
 function AppShellInternal({ children }: AppShellProps) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
+  const { userDoc, loading: userLoading } = useUser(); // Get userDoc from context
 
   const closeMobileSidebar = () => {
     if (isMobile) {
@@ -185,8 +198,23 @@ function AppShellInternal({ children }: AppShellProps) {
     }
   };
 
-  const currentNavItems = pathname.startsWith("/settings") ? settingsNavItems : mainNavItems;
-  const navTitle = pathname.startsWith("/settings") ? "Settings Menu" : "Main Menu";
+  const userRole = userDoc?.role;
+
+  // Determine which nav items and title to display
+  let currentNavItems: NavItem[] = [];
+  let navTitle = "";
+
+  if (pathname.startsWith("/settings")) {
+    currentNavItems = settingsNavItems;
+    navTitle = "Settings Menu";
+  } else {
+    currentNavItems = mainNavItems;
+    navTitle = "Main Menu";
+  }
+  
+  const mainBackLink = mainNavItems.find(item => item.href === "/dashboard");
+  const settingsBackLink = settingsNavItems.find(item => item.href === "/settings");
+
 
   return (
     <>
@@ -204,28 +232,40 @@ function AppShellInternal({ children }: AppShellProps) {
         </SidebarHeader>
         <ScrollArea className="flex-grow">
           <SidebarContent className="p-0">
-             <SidebarGroup className="p-2">
-              <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">{navTitle}</SidebarGroupLabel>
-              <SidebarMenu>
-                <NavMenuItems items={currentNavItems} currentPath={pathname} closeSidebar={closeMobileSidebar} />
-              </SidebarMenu>
-            </SidebarGroup>
-            
-            {!pathname.startsWith("/settings") && (
-               <SidebarGroup className="p-2 mt-4">
-                <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">System</SidebarGroupLabel>
+            {userLoading ? (
+              <div className="p-2 space-y-2">
+                <div className="h-6 w-1/3 bg-muted rounded animate-pulse group-data-[collapsible=icon]:hidden mb-2 ml-2"></div>
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-8 bg-muted rounded animate-pulse group-data-[collapsible=icon]:w-8 mx-2"></div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <SidebarGroup className="p-2">
+                  <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">{navTitle}</SidebarGroupLabel>
                   <SidebarMenu>
-                    <NavMenuItems items={settingsNavItems.filter(item => item.href === "/settings")} currentPath={pathname} closeSidebar={closeMobileSidebar}/>
+                    <NavMenuItems items={currentNavItems} currentPath={pathname} userRole={userRole} closeSidebar={closeMobileSidebar} />
                   </SidebarMenu>
-              </SidebarGroup>
-            )}
-             {pathname.startsWith("/settings") && !pathname.endsWith("/settings") && (
-               <SidebarGroup className="p-2 mt-4">
-                 <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">Back to App</SidebarGroupLabel>
-                  <SidebarMenu>
-                    <NavMenuItems items={mainNavItems.filter(item => item.href === "/dashboard")} currentPath={pathname} closeSidebar={closeMobileSidebar}/>
-                  </SidebarMenu>
-              </SidebarGroup>
+                </SidebarGroup>
+                
+                {/* Conditional Back Links */}
+                {pathname.startsWith("/settings") && !pathname.endsWith("/settings") && settingsBackLink && mainBackLink && (
+                  <SidebarGroup className="p-2 mt-4">
+                    <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">Back to App</SidebarGroupLabel>
+                      <SidebarMenu>
+                        <NavMenuItems items={[mainBackLink]} currentPath={pathname} userRole={userRole} closeSidebar={closeMobileSidebar}/>
+                      </SidebarMenu>
+                  </SidebarGroup>
+                )}
+                {!pathname.startsWith("/settings") && settingsBackLink && (
+                  <SidebarGroup className="p-2 mt-4">
+                    <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">System</SidebarGroupLabel>
+                      <SidebarMenu>
+                        <NavMenuItems items={[settingsBackLink]} currentPath={pathname} userRole={userRole} closeSidebar={closeMobileSidebar}/>
+                      </SidebarMenu>
+                  </SidebarGroup>
+                )}
+              </>
             )}
           </SidebarContent>
         </ScrollArea>
@@ -267,3 +307,4 @@ export function AppShell({ children }: AppShellProps) {
     </SidebarProvider>
   );
 }
+
