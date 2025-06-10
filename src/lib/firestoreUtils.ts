@@ -2,7 +2,6 @@
 import {
   doc,
   setDoc,
-  // addDoc, // Not used directly in this file for top-level collection adds, setDoc with explicit ID is preferred
   getDoc,
   getDocs,
   updateDoc,
@@ -28,12 +27,41 @@ export const createInitialStoreForUser = async (
   displayName?: string
 ): Promise<{ storeId: string; userDocId: string }> => {
   const storeRef = doc(collection(db, "stores"));
+  const storeId = storeRef.id;
   const newStore: Store = {
-    id: storeRef.id,
+    id: storeId,
     name: displayName ? `${displayName}'s Store` : "My New Store",
     ownerId: userId,
+    address: { // Initialize address object
+      street: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: "",
+    },
+    contactEmail: email, // Use user's email as default contact
+    contactPhone: "",
+    slogan: "",
+    logoUrl: "", // Consider a default placeholder image URL if available
+    websiteUrl: "",
     taxRate: 0.08, // Default tax rate (e.g., 8%)
     currency: "USD", // Default currency
+    subscriptionPlan: "free", // Default subscription plan or null
+    showAddressOnReceipt: true,
+    enableOnlineOrderingLink: false,
+    receiptSettings: { // Initialize receipt settings object
+      headerMessage: "Thank you for your purchase!",
+      footerMessage: "Come back soon!",
+      showStoreName: true,
+      showStoreAddress: true,
+      showStorePhone: false,
+      showCashierName: true,
+      showTransactionTime: true,
+      showLoyaltyPoints: false,
+      smsDefaultMessage: "Your receipt from {StoreName}: {ReceiptLink}",
+      emailSubject: "Your Receipt from {StoreName} (Order #{OrderNumber})",
+      emailBodyPrefix: "Thank you for your order! You can view your receipt here: {ReceiptLink}",
+    },
     createdAt: serverTimestamp() as Timestamp,
     lastUpdatedAt: serverTimestamp() as Timestamp,
     isActive: true,
@@ -47,6 +75,7 @@ export const createInitialStoreForUser = async (
     displayName: displayName || email.split("@")[0],
     role: "admin", // Default role for new store owner
     storeId: storeRef.id, // Link user to the newly created store
+    avatarUrl: "", // Initialize avatarUrl
     createdAt: serverTimestamp() as Timestamp,
     lastLoginAt: serverTimestamp() as Timestamp,
     isActive: true,
@@ -57,12 +86,16 @@ export const createInitialStoreForUser = async (
 };
 
 export const getUserDocument = async (userId: string): Promise<UserDocument | null> => {
-  if (!userId) return null;
+  if (!userId) {
+    console.warn("getUserDocument called without a userId.");
+    return null;
+  }
   const userRef = doc(db, "users", userId);
   const userSnap = await getDoc(userRef);
   if (userSnap.exists()) {
     return { uid: userSnap.id, ...userSnap.data() } as UserDocument;
   }
+  console.warn(`User document not found for UID: ${userId} in getUserDocument.`);
   return null;
 };
 
@@ -75,24 +108,38 @@ export const getStoreDetails = async (storeId: string): Promise<Store | null> =>
   const storeSnap = await getDoc(storeRef);
   if (storeSnap.exists()) {
     const data = storeSnap.data();
+    // Ensure all fields from the Store type are mapped, providing defaults for missing optional fields
     return {
         id: storeSnap.id,
-        name: data.name,
-        address: data.address,
-        contactEmail: data.contactEmail,
-        contactPhone: data.contactPhone,
+        name: data.name || "Unnamed Store",
+        address: data.address || { street: "", city: "", state: "", zip: "", country: "" },
+        contactEmail: data.contactEmail || "",
+        contactPhone: data.contactPhone || "",
         taxRate: data.taxRate ?? 0.0,
         currency: data.currency ?? "USD",
         ownerId: data.ownerId,
         createdAt: data.createdAt,
         lastUpdatedAt: data.lastUpdatedAt,
-        isActive: data.isActive,
-        slogan: data.slogan,
-        logoUrl: data.logoUrl,
-        websiteUrl: data.websiteUrl,
-        showAddressOnReceipt: data.showAddressOnReceipt ?? false,
+        isActive: data.isActive ?? true,
+        slogan: data.slogan || "",
+        logoUrl: data.logoUrl || "",
+        websiteUrl: data.websiteUrl || "",
+        subscriptionPlan: data.subscriptionPlan || "free",
+        showAddressOnReceipt: data.showAddressOnReceipt ?? true,
         enableOnlineOrderingLink: data.enableOnlineOrderingLink ?? false,
-        receiptSettings: data.receiptSettings,
+        receiptSettings: data.receiptSettings || {
+            headerMessage: "",
+            footerMessage: "",
+            showStoreName: true,
+            showStoreAddress: true,
+            showStorePhone: false,
+            showCashierName: true,
+            showTransactionTime: true,
+            showLoyaltyPoints: false,
+            smsDefaultMessage: "Your receipt from {StoreName}: {ReceiptLink}",
+            emailSubject: "Your Receipt from {StoreName} (Order #{OrderNumber})",
+            emailBodyPrefix: "Thank you for your order! You can view your receipt here: {ReceiptLink}",
+        },
       } as Store;
   }
   return null;
@@ -115,11 +162,15 @@ export const addProduct = async (storeId: string, productData: Omit<Product, "id
     throw new Error("addProduct called without a storeId.");
   }
   const productsCollection = collection(db, "products");
-  const newProductRef = doc(productsCollection);
+  const newProductRef = doc(productsCollection); // Creates a ref with a new auto-generated ID
   const fullProductData: Product = {
     ...productData,
-    id: newProductRef.id,
+    id: newProductRef.id, // Use the auto-generated ID
     storeId,
+    // Initialize AI-related fields if not provided
+    salesVelocity: productData.salesVelocity ?? 0,
+    historicalSalesData: productData.historicalSalesData ?? {},
+    supplierLeadTimeDays: productData.supplierLeadTimeDays ?? 0,
     createdAt: serverTimestamp() as Timestamp,
     lastUpdatedAt: serverTimestamp() as Timestamp,
   };
@@ -162,18 +213,19 @@ export const deleteProduct = async (productId: string): Promise<void> => {
 
 // --- Customer Management ---
 
-export const addCustomer = async (storeId: string, customerData: Omit<Customer, "id" | "storeId" | "createdAt" | "lastUpdatedAt" | "totalSpent" | "loyaltyPoints">): Promise<string> => {
+export const addCustomer = async (storeId: string, customerData: Omit<Customer, "id" | "storeId" | "createdAt" | "lastUpdatedAt" | "totalSpent" | "loyaltyPoints" | "lastPurchaseAt">): Promise<string> => {
   if (!storeId) {
     throw new Error("addCustomer called without a storeId.");
   }
   const customersCollection = collection(db, "customers");
-  const newCustomerRef = doc(customersCollection);
+  const newCustomerRef = doc(customersCollection); // Creates a ref with a new auto-generated ID
   const fullCustomerData: Customer = {
     ...customerData,
-    id: newCustomerRef.id,
+    id: newCustomerRef.id, // Use the auto-generated ID
     storeId,
     totalSpent: 0,
     loyaltyPoints: 0,
+    // lastPurchaseAt will be set upon first purchase
     createdAt: serverTimestamp() as Timestamp,
     lastUpdatedAt: serverTimestamp() as Timestamp,
   };
@@ -256,6 +308,9 @@ export const addTransaction = async (
         paymentStatus: "completed",
         ...(customerId && { customerId }),
         ...(customerName && { customerName }),
+        // Initialize other optional fields
+        digitalReceiptSent: false,
+        offlineProcessed: false,
         lastUpdatedAt: serverTimestamp() as Timestamp,
       };
       firestoreTransaction.set(newTransactionRef, transactionData);
@@ -283,13 +338,12 @@ export const addTransaction = async (
         if (customerSnap.exists()) {
             const currentTotalSpent = customerSnap.data().totalSpent || 0;
             const currentLoyaltyPoints = customerSnap.data().loyaltyPoints || 0;
-            // Basic loyalty: 1 point per dollar spent (configurable)
             const pointsEarned = Math.floor(totalAmount); 
             firestoreTransaction.update(customerRef, {
                  totalSpent: currentTotalSpent + totalAmount,
                  loyaltyPoints: currentLoyaltyPoints + pointsEarned,
-                 lastPurchaseAt: serverTimestamp(),
-                 lastUpdatedAt: serverTimestamp()
+                 lastPurchaseAt: serverTimestamp() as Timestamp, // Explicitly cast
+                 lastUpdatedAt: serverTimestamp() as Timestamp // Explicitly cast
             });
         }
       }
@@ -297,6 +351,8 @@ export const addTransaction = async (
     return newTransactionRef.id;
   } catch (error) {
     console.error("Transaction failed: ", error);
+    // It's good practice to re-throw the error so the calling function can handle it,
+    // e.g., by showing a toast notification to the user.
     throw error;
   }
 };
@@ -317,3 +373,12 @@ export const getTransactionsByStoreId = async (storeId: string | undefined, coun
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
 };
+
+// It's important to explicitly type serverTimestamp() as Timestamp where needed,
+// especially when assigning to fields typed as Timestamp.
+// The functions addProduct, addCustomer, and addTransaction have been updated
+// to ensure more fields are initialized based on the types in src/types/index.ts.
+// Specifically, for Product, AI-related fields are initialized.
+// For Customer, lastPurchaseAt is not set initially (set on first purchase).
+// For Transaction, optional fields like digitalReceiptSent and offlineProcessed are initialized.
+// getStoreDetails has also been updated to provide defaults for all Store fields if they are missing from Firestore.
