@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -14,43 +15,60 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CreditCard, LogOut, Settings, User as UserIcon } from "lucide-react";
-import { useSidebar } from "@/components/ui/sidebar"; // To check if sidebar is collapsed
+import { useSidebar } from "@/components/ui/sidebar";
+import { signOut } from "firebase/auth";
+import { auth as firebaseAuth } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export function UserNav() {
   const router = useRouter();
-  const { state: sidebarState, isMobile } = useSidebar(); // Get sidebar state
+  const { toast } = useToast();
+  const { state: sidebarState, isMobile } = useSidebar(); 
 
-  const handleLogout = () => {
-    // In a real app, clear session/token
-    router.push("/login");
+  const handleLogout = async () => {
+    try {
+      await signOut(firebaseAuth);
+      router.push("/login");
+      toast({ title: "Logged Out", description: "You have been successfully logged out." });
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({ title: "Logout Failed", description: "Could not log you out. Please try again.", variant: "destructive" });
+    }
   };
 
-  // Determine if only icon should be shown (sidebar collapsed and not mobile)
   const showOnlyIcon = sidebarState === "collapsed" && !isMobile;
+
+  // Placeholder user data - in a real app, this would come from auth state
+  const user = firebaseAuth.currentUser;
+  const userName = user?.displayName || "User";
+  const userEmail = user?.email || "user@example.com";
+  const avatarFallback = userName.split(" ").map(n => n[0]).join("").substring(0,2).toUpperCase() || "U";
+
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className={cn(
           "relative h-10 rounded-full p-0",
-          showOnlyIcon ? "w-10" : "w-auto px-3" // Adjust width based on state
+          showOnlyIcon ? "w-10" : "w-auto px-3"
           )}
         >
           <Avatar className="h-8 w-8">
-            <AvatarImage src="https://placehold.co/40x40.png" alt="User avatar" data-ai-hint="user avatar" />
-            <AvatarFallback>JD</AvatarFallback>
+            <AvatarImage src={user?.photoURL || "https://placehold.co/40x40.png"} alt={`${userName}'s avatar`} data-ai-hint="user avatar" />
+            <AvatarFallback>{avatarFallback}</AvatarFallback>
           </Avatar>
           {!showOnlyIcon && (
-             <span className="ml-2 hidden md:inline text-sm font-medium text-sidebar-foreground">John Doe</span>
+             <span className="ml-2 hidden md:inline text-sm font-medium text-sidebar-foreground">{userName}</span>
           )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56 bg-popover text-popover-foreground" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">John Doe</p>
+            <p className="text-sm font-medium leading-none">{userName}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              admin@example.com
+              {userEmail}
             </p>
           </div>
         </DropdownMenuLabel>
