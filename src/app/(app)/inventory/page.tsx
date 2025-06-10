@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, FileDown, FileUp, BotMessageSquare, DownloadCloud } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, FileDown, FileUp, BotMessageSquare, DownloadCloud, UploadCloud } from "lucide-react"; // Added UploadCloud
 import type { Product } from "@/types";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
@@ -88,25 +88,20 @@ const downloadCSV = (csvString: string, filename: string) => {
 
 export default function InventoryPage() {
   const { toast } = useToast();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Define headers for export and template
-  // These should match the fields you expect for import/export
   const csvHeaders = [
     "id", "name", "sku", "barcode", "price", "stockQuantity", "category", 
     "imageUrl", "isVisibleOnPOS", "lowStockThreshold", "description", 
     "supplier", "tags", "salesVelocity", "historicalSalesData", "supplierLeadTimeDays"
   ];
-   // For the template, we might exclude system-generated fields like 'id' or 'storeId' 
-   // or make them optional, but including them guides the user.
   const templateHeaders = [
     "name", "sku", "barcode", "price", "stockQuantity", "category", 
     "imageUrl", "isVisibleOnPOS", "lowStockThreshold", "description", 
     "supplier", "tags", "salesVelocity", "historicalSalesData", "supplierLeadTimeDays"
   ];
 
-
   const handleExportAll = () => {
-    // In a real app, you would fetch all products from Firestore here
     const productsToExport = mockProducts; 
     if (productsToExport.length === 0) {
       toast({ title: "No Products", description: "There are no products to export.", variant: "default" });
@@ -118,18 +113,56 @@ export default function InventoryPage() {
   };
 
   const handleExportTemplate = () => {
-    const csvString = convertToCSV([], templateHeaders, true); // Pass empty array and isTemplate=true
+    const csvString = convertToCSV([], templateHeaders, true); 
     downloadCSV(csvString, "product_import_template.csv");
     toast({ title: "Template Downloaded", description: "Product import template (product_import_template.csv) downloaded." });
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      toast({
+        title: "File Selected",
+        description: `${file.name} ready for import. Actual import processing not yet implemented.`,
+      });
+      // Reset file input value to allow selecting the same file again
+      if(fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      // TODO: Implement CSV parsing and data import logic here
+      // Example:
+      // const reader = new FileReader();
+      // reader.onload = (e) => {
+      //   const text = e.target?.result;
+      //   console.log(text);
+      //   // Parse CSV and process data
+      // };
+      // reader.readAsText(file);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: "none" }}
+        accept=".csv"
+        onChange={handleFileChange}
+      />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl font-headline tracking-tight text-foreground">Inventory Management</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground">
-            <FileUp className="mr-2 h-4 w-4" /> Import
+          <Button 
+            variant="outline" 
+            className="text-foreground hover:bg-accent hover:text-accent-foreground"
+            onClick={handleImportClick}
+          >
+            <UploadCloud className="mr-2 h-4 w-4" /> Import CSV
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -233,4 +266,4 @@ export default function InventoryPage() {
     </div>
   );
 }
-
+    
