@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // Removed CardDescription as it's not used directly here
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -44,6 +44,9 @@ type LastCartAction =
   | { type: 'increment_existing_item'; itemId: string; itemType: 'product' | 'service' }
   | null;
 
+// Basic regex for UI validation (not for server-side security)
+const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const basicPhoneRegex = /^\+?[1-9]\d{1,14}$/; // E.164-ish, very loose
 
 export default function SalesPage() {
   const { user, userDoc } = useUser();
@@ -63,7 +66,8 @@ export default function SalesPage() {
   const [selectedCategory, setSelectedCategory] = React.useState("All");
 
   const [isLoadingCatalog, setIsLoadingCatalog] = React.useState(true);
-  const [isProcessingPayment, setIsProcessingPayment] = React.useState(false);
+  const [isProcessingOrSending, setIsProcessingOrSending] = React.useState(false);
+
 
   // Terminal State
   const [currentStep, setCurrentStep] = React.useState<'order' | 'payment' | 'receipt'>('order');
@@ -74,6 +78,7 @@ export default function SalesPage() {
   const [appliedDiscountAmount, setAppliedDiscountAmount] = React.useState<number>(0);
   const [receiptRecipient, setReceiptRecipient] = React.useState<string>("");
   const [lastCartAction, setLastCartAction] = React.useState<LastCartAction>(null);
+  const [receiptSent, setReceiptSent] = React.useState(false);
 
 
   // Customer Modal State
@@ -242,6 +247,7 @@ export default function SalesPage() {
     setAppliedPromoCode(null);
     // setAppliedDiscountAmount(0); // This will be reset by the useEffect watching appliedPromoCode
     setReceiptRecipient("");
+    setReceiptSent(false);
     if (clearLastAction) {
         setLastCartAction(null);
     }
@@ -291,7 +297,6 @@ export default function SalesPage() {
   const handleApplyOrRemovePromoCode = () => {
     if (appliedPromoCode && promoCodeInput === "") { // Condition to remove
         setAppliedPromoCode(null);
-        // appliedDiscountAmount will be updated by useEffect
         toast({ title: "Promo Removed", description: "Discount has been removed from the order."});
         return;
     }
@@ -303,7 +308,7 @@ export default function SalesPage() {
     }
     const promoDetails = HARDCODED_PROMO_CODES[code];
     if (promoDetails) {
-        setAppliedPromoCode(code); // This will trigger useEffect to recalculate discount
+        setAppliedPromoCode(code); 
         toast({ title: "Promo Applied!", description: `Code "${code}" (${promoDetails.description || ''}) applied.`});
         setPromoCodeInput("");
     } else {
@@ -315,6 +320,7 @@ export default function SalesPage() {
     setSelectedPaymentMethod(method);
     setCurrentStep('payment');
     setAmountTendered(""); 
+    setReceiptSent(false);
     
     const customer = customers.find(c => c.id === selectedCustomerId);
     if (customer) {
@@ -338,19 +344,39 @@ export default function SalesPage() {
         return;
     }
 
-    setIsProcessingPayment(true);
-    await new Promise(resolve => setTimeout(resolve, 1500)); 
-    setIsProcessingPayment(false);
+    setIsProcessingOrSending(true);
+    await new Promise(resolve => setTimeout(resolve, selectedPaymentMethod === 'cash' ? 1000 : 2000)); 
+    setIsProcessingOrSending(false);
     setCurrentStep('receipt');
     toast({ title: "Payment Processed", description: "Ready for receipt." });
   };
   
+  const handleSimulatedSendReceipt = async (channel: 'SMS' | 'Email') => {
+    setIsProcessingOrSending(true);
+    await new Promise(resolve => setTimeout(resolve, 1500)); 
+    setIsProcessingOrSending(false);
+    setReceiptSent(true);
+    toast({
+      title: "Receipt Sent (Simulated)",
+      description: `Digital receipt sent via ${channel} to ${receiptRecipient}.`,
+    });
+  };
+
+  const handleNoReceipt = () => {
+    setReceiptSent(true); // Treat as if receipt step is "handled"
+    toast({
+      title: "No Receipt",
+      description: "Customer opted out of a digital receipt.",
+      variant: "default"
+    });
+  }
+
   const handleFinalizeSale = async () => {
     if (!userDoc || !user) {
       toast({ title: "Error", description: "User not authenticated.", variant: "destructive" });
       return;
     }
-    setIsProcessingPayment(true);
+    setIsProcessingOrSending(true);
     try {
       const customerForTx = customers.find(c => c.id === selectedCustomerId);
 
@@ -390,7 +416,7 @@ export default function SalesPage() {
       console.error("Finalize sale error:", error);
       toast({ title: "Sale Error", description: error.message || "Could not complete the transaction.", variant: "destructive" });
     }
-    setIsProcessingPayment(false);
+    setIsProcessingOrSending(false);
   };
   
   const quickTenderAmounts = [10, 20, 50, 100];
@@ -426,6 +452,9 @@ export default function SalesPage() {
 
   const promoButtonText = appliedPromoCode && promoCodeInput === "" ? "Remove Promo" : "Apply Promo";
   const promoButtonDisabled = (promoButtonText === "Apply Promo" && (!promoCodeInput || subtotal === 0)) || (promoButtonText === "Remove Promo" && !appliedPromoCode);
+  
+  const isReceiptRecipientValidEmail = basicEmailRegex.test(receiptRecipient);
+  const isReceiptRecipientValidPhone = basicPhoneRegex.test(receiptRecipient);
 
 
   return (
@@ -522,7 +551,7 @@ export default function SalesPage() {
                     <TooltipProvider delayDuration={100}>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={handleUndoLastCartAction} className="text-muted-foreground hover:text-foreground">
+                                <Button variant="ghost" size="icon" onClick={handleUndoLastCartAction} className="text-muted-foreground hover:text-foreground" disabled={isProcessingOrSending}>
                                     <Undo2 className="h-5 w-5"/>
                                 </Button>
                             </TooltipTrigger>
@@ -535,7 +564,7 @@ export default function SalesPage() {
                 {cartItems.length > 0 && (
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-5 w-5"/></Button>
+                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" disabled={isProcessingOrSending}><Trash2 className="h-5 w-5"/></Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader> <AlertDialogTitle>Clear Cart?</AlertDialogTitle> <AlertDialogDescription> Are you sure you want to remove all items from the current order? This will not clear the assigned customer or promo code. </AlertDialogDescription> </AlertDialogHeader>
@@ -560,7 +589,7 @@ export default function SalesPage() {
                 <div className="flex-grow">
                   <p className="font-medium text-foreground line-clamp-1">{item.name}</p>
                   <div className="flex items-center mt-1 gap-1">
-                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, item.itemType!, -1)}><MinusCircle className="h-4 w-4"/></Button>
+                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, item.itemType!, -1)} disabled={isProcessingOrSending}><MinusCircle className="h-4 w-4"/></Button>
                      <Input 
                         type="number"
                         value={item.quantity}
@@ -569,15 +598,16 @@ export default function SalesPage() {
                         min="0"
                         className="h-7 w-12 text-sm text-center p-1"
                         aria-label={`Quantity for ${item.name}`}
+                        disabled={isProcessingOrSending}
                      />
-                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, item.itemType!, 1)}><PlusCircle className="h-4 w-4"/></Button>
+                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, item.itemType!, 1)} disabled={isProcessingOrSending}><PlusCircle className="h-4 w-4"/></Button>
                      <span className="text-xs text-muted-foreground ml-1">x ${item.price.toFixed(2)}</span>
                   </div>
                 </div>
                 <p className="font-semibold text-foreground w-20 text-right">${item.totalPrice.toFixed(2)}</p>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="ml-1 text-muted-foreground hover:text-destructive" aria-label={`Remove ${item.name} from cart`}>
+                    <Button variant="ghost" size="icon" className="ml-1 text-muted-foreground hover:text-destructive" aria-label={`Remove ${item.name} from cart`} disabled={isProcessingOrSending}>
                         <Trash2 className="h-4 w-4"/>
                     </Button>
                   </AlertDialogTrigger>
@@ -607,9 +637,9 @@ export default function SalesPage() {
             <div className="flex items-end gap-2 mb-3">
                 <div className="flex-grow">
                     <Label htmlFor="promo-code" className="text-xs text-muted-foreground">Promo Code</Label>
-                    <Input id="promo-code" placeholder="Enter code" className="h-10" value={promoCodeInput} onChange={(e) => setPromoCodeInput(e.target.value)} />
+                    <Input id="promo-code" placeholder="Enter code" className="h-10" value={promoCodeInput} onChange={(e) => setPromoCodeInput(e.target.value)} disabled={isProcessingOrSending || currentStep !== 'order'}/>
                 </div>
-                <Button onClick={handleApplyOrRemovePromoCode} className="h-10 shrink-0" disabled={promoButtonDisabled}>
+                <Button onClick={handleApplyOrRemovePromoCode} className="h-10 shrink-0" disabled={promoButtonDisabled || isProcessingOrSending || currentStep !== 'order'}>
                   {promoButtonText}
                 </Button>
             </div>
@@ -618,16 +648,16 @@ export default function SalesPage() {
                 <Label className="text-xs text-muted-foreground">Customer</Label>
                 {selectedCustomerId && selectedCustomerName ? (
                     <div className="flex items-center justify-between p-2 border rounded-md bg-background h-10">
-                        <Button variant="link" className="p-0 h-auto text-sm font-medium text-foreground flex items-center hover:no-underline" onClick={() => setIsCustomerModalOpen(true)}>
+                        <Button variant="link" className="p-0 h-auto text-sm font-medium text-foreground flex items-center hover:no-underline" onClick={() => setIsCustomerModalOpen(true)} disabled={isProcessingOrSending || currentStep !== 'order'}>
                             <UserCheck className="mr-2 h-4 w-4 text-primary"/>{selectedCustomerName}
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={handleClearCustomer} className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                        <Button variant="ghost" size="icon" onClick={handleClearCustomer} className="h-7 w-7 text-muted-foreground hover:text-destructive" disabled={isProcessingOrSending || currentStep !== 'order'}>
                             <UserX className="h-4 w-4" />
                             <span className="sr-only">Clear customer</span>
                         </Button>
                     </div>
                 ) : (
-                    <Button variant="outline" className="w-full h-10 justify-start" onClick={() => setIsCustomerModalOpen(true)}>
+                    <Button variant="outline" className="w-full h-10 justify-start" onClick={() => setIsCustomerModalOpen(true)} disabled={isProcessingOrSending || currentStep !== 'order'}>
                         <UserPlus className="mr-2 h-4 w-4 text-muted-foreground" />
                         Assign Customer
                     </Button>
@@ -707,10 +737,10 @@ export default function SalesPage() {
             <>
                 <h2 className="text-xl font-semibold mb-6 text-center text-foreground">Select Payment Method</h2>
                 <div className="grid grid-cols-1 gap-4 flex-grow content-center">
-                    <Button onClick={() => handlePaymentMethodSelect('cash')} className="h-20 text-xl bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600">
+                    <Button onClick={() => handlePaymentMethodSelect('cash')} className="h-20 text-xl bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600" disabled={cartItems.length === 0 || isProcessingOrSending}>
                         <Wallet className="mr-3 h-8 w-8"/>Cash
                     </Button>
-                    <Button onClick={() => handlePaymentMethodSelect('card')} className="h-20 text-xl bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600">
+                    <Button onClick={() => handlePaymentMethodSelect('card')} className="h-20 text-xl bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600" disabled={cartItems.length === 0 || isProcessingOrSending}>
                         <CreditCard className="mr-3 h-8 w-8"/>Card
                     </Button>
                 </div>
@@ -720,7 +750,7 @@ export default function SalesPage() {
 
         {currentStep === 'payment' && selectedPaymentMethod === 'cash' && (
             <>
-                <Button variant="ghost" size="sm" onClick={() => setCurrentStep('order')} className="mb-4 self-start text-muted-foreground">&larr; Back to Payment Methods</Button>
+                <Button variant="ghost" size="sm" onClick={() => setCurrentStep('order')} className="mb-4 self-start text-muted-foreground" disabled={isProcessingOrSending}>&larr; Back to Payment Methods</Button>
                 <h2 className="text-xl font-semibold mb-4 text-center text-foreground">Cash Payment</h2>
                 <Label htmlFor="amount-tendered" className="text-muted-foreground">Amount Tendered</Label>
                 <Input 
@@ -729,36 +759,48 @@ export default function SalesPage() {
                     placeholder="0.00" 
                     value={amountTendered}
                     onChange={(e) => setAmountTendered(e.target.value)}
-                    className="h-16 text-3xl text-right mb-3" 
+                    className="h-16 text-3xl text-right mb-1" 
+                    disabled={isProcessingOrSending}
                 />
+                 {parseFloat(amountTendered || "0") < total && amountTendered !== "" && (
+                    <p className="text-xs text-destructive text-right mb-2">Amount tendered is less than total.</p>
+                )}
                 <div className="grid grid-cols-2 gap-2 mb-3">
                     {quickTenderAmounts.map(amount => (
-                        <Button key={amount} variant="outline" className="h-12 text-base" onClick={() => setAmountTendered(amount.toString())}>${amount}</Button>
+                        <Button key={amount} variant="outline" className="h-12 text-base" onClick={() => setAmountTendered(amount.toString())} disabled={isProcessingOrSending}>${amount}</Button>
                     ))}
-                    <Button variant="outline" className="h-12 text-base" onClick={() => setAmountTendered(total.toFixed(2))}>Exact Amount</Button>
-                     <Button variant="outline" className="h-12 text-base col-span-2" onClick={() => setAmountTendered("")}>Clear</Button>
+                    <Button variant="outline" className="h-12 text-base" onClick={() => setAmountTendered(total.toFixed(2))} disabled={isProcessingOrSending}>Exact Amount</Button>
+                     <Button variant="outline" className="h-12 text-base col-span-2" onClick={() => setAmountTendered("")} disabled={isProcessingOrSending}>Clear</Button>
                 </div>
                 <div className="text-right text-2xl font-bold my-4 p-3 bg-muted rounded-md">
                     <span className="text-muted-foreground">Change Due: </span>
                     <span className="text-green-600 dark:text-green-500">${changeDue.toFixed(2)}</span>
                 </div>
-                <Button onClick={handleProcessPayment} className="w-full h-16 text-xl mt-auto bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600" disabled={isProcessingPayment || parseFloat(amountTendered || "0") < total}>
-                    {isProcessingPayment ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Cash"}
+                <Button 
+                    onClick={handleProcessPayment} 
+                    className="w-full h-16 text-xl mt-auto bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600" 
+                    disabled={isProcessingOrSending || parseFloat(amountTendered || "0") < total || amountTendered === ""}
+                >
+                    {isProcessingOrSending ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Cash"}
                 </Button>
             </>
         )}
 
         {currentStep === 'payment' && selectedPaymentMethod === 'card' && (
             <>
-                 <Button variant="ghost" size="sm" onClick={() => setCurrentStep('order')} className="mb-4 self-start text-muted-foreground">&larr; Back to Payment Methods</Button>
+                 <Button variant="ghost" size="sm" onClick={() => setCurrentStep('order')} className="mb-4 self-start text-muted-foreground" disabled={isProcessingOrSending}>&larr; Back to Payment Methods</Button>
                 <h2 className="text-xl font-semibold mb-4 text-center text-foreground">Card Payment</h2>
                 <div className="flex flex-col items-center justify-center flex-grow text-center">
                     <CreditCard className="h-24 w-24 text-primary mb-4"/>
                     <p className="text-muted-foreground mb-2">Please use card terminal to complete payment.</p>
                     <p className="text-2xl font-bold text-foreground">Total: ${total.toFixed(2)}</p>
                 </div>
-                <Button onClick={handleProcessPayment} className="w-full h-16 text-xl mt-auto bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600" disabled={isProcessingPayment}>
-                    {isProcessingPayment ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Card"}
+                <Button 
+                    onClick={handleProcessPayment} 
+                    className="w-full h-16 text-xl mt-auto bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600" 
+                    disabled={isProcessingOrSending}
+                >
+                    {isProcessingOrSending ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Card"}
                 </Button>
             </>
         )}
@@ -775,23 +817,23 @@ export default function SalesPage() {
                             value={receiptRecipient}
                             onChange={(e) => setReceiptRecipient(e.target.value)}
                             className="h-12 text-lg" 
+                            disabled={isProcessingOrSending || receiptSent}
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                        <Button variant="outline" className="h-12" disabled> 
-                            <MessageSquare className="mr-2"/> Send SMS
+                        <Button variant="outline" className="h-12" onClick={() => handleSimulatedSendReceipt('SMS')} disabled={isProcessingOrSending || receiptSent || !isReceiptRecipientValidPhone || !receiptRecipient}> 
+                           {isProcessingOrSending && selectedPaymentMethod === 'cash' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <MessageSquare className="mr-2"/>} Send SMS
                         </Button>
-                        <Button variant="outline" className="h-12" disabled> 
-                            <Mail className="mr-2"/> Send Email
+                        <Button variant="outline" className="h-12" onClick={() => handleSimulatedSendReceipt('Email')} disabled={isProcessingOrSending || receiptSent || !isReceiptRecipientValidEmail || !receiptRecipient}> 
+                            {isProcessingOrSending && selectedPaymentMethod === 'card' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2"/>} Send Email
                         </Button>
                     </div>
                 </div>
-                 <p className="text-center text-muted-foreground my-4 text-sm">Or</p>
-                <Button variant="secondary" onClick={handleFinalizeSale} className="w-full h-12 text-base mb-3" disabled={isProcessingPayment}>
-                    No Receipt & Finalize
+                <Button variant="secondary" onClick={handleNoReceipt} className="w-full h-12 text-base mb-3" disabled={isProcessingOrSending || receiptSent}>
+                    No Receipt
                 </Button>
-                <Button onClick={handleFinalizeSale} className="w-full h-16 text-xl mt-auto" disabled={isProcessingPayment}>
-                    {isProcessingPayment ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Finalize Sale"}
+                <Button onClick={handleFinalizeSale} className="w-full h-16 text-xl mt-auto" disabled={isProcessingOrSending || !receiptSent}>
+                    {isProcessingOrSending ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Finalize Sale"}
                 </Button>
             </>
         )}
