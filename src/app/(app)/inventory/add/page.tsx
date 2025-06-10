@@ -45,7 +45,7 @@ const productFormSchema = z.object({
 type ProductFormValues = z.infer<typeof productFormSchema>;
 
 export default function AddProductPage() {
-  const { userDoc } = useUser();
+  const { userDoc, storeDetails, loading: userContextLoading } = useUser();
   const { toast } = useToast();
   const router = useRouter();
   const [isSaving, setIsSaving] = React.useState(false);
@@ -67,29 +67,64 @@ export default function AddProductPage() {
     },
   });
 
+  const currentDataHandlingMode = storeDetails?.dataHandlingMode || 'offlineFriendly';
+
   const onSubmit = async (data: ProductFormValues) => {
     if (!userDoc?.storeId) {
       toast({ title: "Error", description: "Store ID not found. Cannot add product.", variant: "destructive" });
       return;
     }
-    setIsSaving(true);
+    setIsSaving(true); // Always set saving to true to disable form
+
     try {
       const productData = {
         ...data,
-        // Ensure numbers are correctly formatted if they come as strings from form
         price: Number(data.price),
         stockQuantity: Number(data.stockQuantity),
         lowStockThreshold: data.lowStockThreshold ? Number(data.lowStockThreshold) : undefined,
       };
-      await addProduct(userDoc.storeId, productData);
-      toast({ title: "Success", description: "Product added successfully." });
+
+      const addProductPromise = addProduct(userDoc.storeId, productData);
+
+      if (currentDataHandlingMode === 'cloudOnlyStrict') {
+        await addProductPromise; // Await server confirmation
+        toast({ title: "Success (Synced)", description: "Product added and synced to cloud." });
+      } else {
+        // For offlineFriendly, don't await. Firestore handles background sync.
+        // The promise will still resolve/reject based on local write success.
+        addProductPromise.then(() => {
+          toast({ title: "Success (Offline Friendly)", description: "Product saved. Will sync if offline." });
+        }).catch((error) => {
+           // This catch is for immediate client-side errors or if the local write fails, which is rare.
+           // Firestore handles network errors transparently for background sync.
+          console.error("Error adding product (offline friendly queue):", error);
+          toast({ title: "Save Error", description: `Product save initiated, but an issue occurred: ${error.message}`, variant: "destructive" });
+        });
+      }
       router.push("/inventory"); 
     } catch (error: any) {
+      // This catch will primarily be for errors during the 'await' in strict mode
+      // or if addProduct throws an immediate error (e.g., validation if not caught by Zod, though unlikely here)
       console.error("Error adding product:", error);
       toast({ title: "Error", description: `Failed to add product: ${error.message}`, variant: "destructive" });
+    } finally {
+      // Only set isSaving to false after operation completes or fails.
+      // For offlineFriendly, this will be quick. For strict, it waits for await.
+      if (currentDataHandlingMode === 'cloudOnlyStrict') {
+        setIsSaving(false);
+      } else {
+        // For offline friendly, we can arguably set isSaving to false sooner
+        // as the UI can move on. However, to keep button disabled until navigation,
+        // it's often better to wait for the then/catch of the promise.
+        // For simplicity, let's make it consistent.
+        // A more advanced pattern might re-enable form for next entry immediately in offline mode.
+        setIsSaving(false); 
+      }
     }
-    setIsSaving(false);
   };
+  
+  const formDisabled = isSaving || userContextLoading || !userDoc?.storeId || !storeDetails;
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -106,164 +141,168 @@ export default function AddProductPage() {
       
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-headline text-foreground flex items-center">
-                <PackagePlus className="mr-2 h-6 w-6 text-primary" />
-                Product Information
-              </CardTitle>
-              <CardDescription className="text-muted-foreground">Fill in the details for the new product.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
+          <fieldset disabled={formDisabled}> {/* Disable fieldset during save */}
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-headline text-foreground flex items-center">
+                  <PackagePlus className="mr-2 h-6 w-6 text-primary" />
+                  Product Information
+                </CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Fill in the details for the new product. Current mode: <span className="font-semibold">{currentDataHandlingMode === 'cloudOnlyStrict' ? 'Cloud Sync (Strict)' : 'Offline Friendly'}</span>.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">Product Name</FormLabel>
+                        <FormControl><Input {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sku"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">SKU (Stock Keeping Unit)</FormLabel>
+                        <FormControl><Input {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">Price</FormLabel>
+                        <FormControl><Input type="number" step="0.01" {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="stockQuantity"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">Stock Quantity</FormLabel>
+                        <FormControl><Input type="number" step="1" {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <FormField
                   control={form.control}
-                  name="name"
+                  name="category"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-foreground">Product Name</FormLabel>
-                      <FormControl><Input {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sku"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">SKU (Stock Keeping Unit)</FormLabel>
-                      <FormControl><Input {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-               <div className="grid md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Price</FormLabel>
-                      <FormControl><Input type="number" step="0.01" {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="stockQuantity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Stock Quantity</FormLabel>
-                      <FormControl><Input type="number" step="1" {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-               <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-foreground">Category</FormLabel>
-                    <FormControl><Input {...field} placeholder="e.g., Coffee, Pastries, Merchandise" className="text-foreground" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-foreground">Description (Optional)</FormLabel>
-                    <FormControl><Textarea {...field} className="text-foreground" rows={3} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid md:grid-cols-2 gap-6">
-                 <FormField
-                  control={form.control}
-                  name="lowStockThreshold"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Low Stock Threshold (Optional)</FormLabel>
-                      <FormControl><Input type="number" step="1" {...field} value={field.value ?? ""} className="text-foreground" /></FormControl>
-                      <FormDescription>Notify when stock drops to this level.</FormDescription>
+                      <FormLabel className="text-foreground">Category</FormLabel>
+                      <FormControl><Input {...field} placeholder="e.g., Coffee, Pastries, Merchandise" className="text-foreground" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 <FormField
                   control={form.control}
-                  name="imageUrl"
+                  name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-foreground">Image URL (Optional)</FormLabel>
-                      <FormControl><Input type="url" {...field} placeholder="https://example.com/image.png" className="text-foreground" /></FormControl>
+                      <FormLabel className="text-foreground">Description (Optional)</FormLabel>
+                      <FormControl><Textarea {...field} className="text-foreground" rows={3} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
-               <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="lowStockThreshold"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">Low Stock Threshold (Optional)</FormLabel>
+                        <FormControl><Input type="number" step="1" {...field} value={field.value ?? ""} className="text-foreground" /></FormControl>
+                        <FormDescription>Notify when stock drops to this level.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="imageUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">Image URL (Optional)</FormLabel>
+                        <FormControl><Input type="url" {...field} placeholder="https://example.com/image.png" className="text-foreground" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="supplier"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">Supplier (Optional)</FormLabel>
+                        <FormControl><Input {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="barcode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">Barcode/UPC (Optional)</FormLabel>
+                        <FormControl><Input {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
                 <FormField
                   control={form.control}
-                  name="supplier"
+                  name="isVisibleOnPOS"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Supplier (Optional)</FormLabel>
-                      <FormControl><Input {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="text-foreground">
+                          Visible on POS
+                        </FormLabel>
+                        <FormDescription>
+                          If checked, this product will appear in the sales interface.
+                        </FormDescription>
+                      </div>
                     </FormItem>
                   )}
                 />
-                 <FormField
-                  control={form.control}
-                  name="barcode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Barcode/UPC (Optional)</FormLabel>
-                      <FormControl><Input {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <FormField
-                control={form.control}
-                name="isVisibleOnPOS"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel className="text-foreground">
-                        Visible on POS
-                      </FormLabel>
-                      <FormDescription>
-                        If checked, this product will appear in the sales interface.
-                      </FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-            <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSaving || !userDoc?.storeId}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <Save className="mr-2 h-4 w-4" /> Save Product
-              </Button>
-            </CardFooter>
-          </Card>
+              </CardContent>
+              <CardFooter className="border-t px-6 py-4">
+                <Button type="submit" disabled={formDisabled}>
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Save className="mr-2 h-4 w-4" /> Save Product
+                </Button>
+              </CardFooter>
+            </Card>
+          </fieldset>
         </form>
       </Form>
     </div>

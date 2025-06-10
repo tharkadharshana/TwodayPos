@@ -149,6 +149,7 @@ export type Store = {
     emailSubject?: string;
     emailBodyPrefix?: string;
   };
+  dataHandlingMode?: 'offlineFriendly' | 'cloudOnlyStrict'; // Added for data handling preference
 };
 
 export type UserDocument = {
@@ -207,3 +208,4 @@ export type PaymentMethodDistribution = {
   count: number;
   amount: number;
 };
+

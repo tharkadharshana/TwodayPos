@@ -67,6 +67,7 @@ export const createInitialStoreForUser = async (
       emailSubject: "Your Receipt from {StoreName} (Order #{OrderNumber})",
       emailBodyPrefix: "Thank you for your order! You can view your receipt here: {ReceiptLink}",
     },
+    dataHandlingMode: 'offlineFriendly', // Default data handling mode
     createdAt: serverTimestamp() as Timestamp,
     lastUpdatedAt: serverTimestamp() as Timestamp,
     isActive: true,
@@ -157,6 +158,7 @@ export const getStoreDetails = async (storeId: string | null): Promise<Store | n
             emailSubject: "Your Receipt from {StoreName} (Order #{OrderNumber})",
             emailBodyPrefix: "Thank you for your order! You can view your receipt here: {ReceiptLink}",
         },
+        dataHandlingMode: data.dataHandlingMode || 'offlineFriendly', // Ensure default
       } as Store;
   }
   return null;
@@ -201,6 +203,9 @@ export const addProduct = async (storeId: string, productData: Omit<Product, "id
     createdAt: serverTimestamp() as Timestamp,
     lastUpdatedAt: serverTimestamp() as Timestamp,
   };
+  // The actual await for setDoc is important for strict sync.
+  // For offlineFriendly, Firestore handles queueing automatically.
+  // This function will now always return a promise that resolves when the write is accepted by Firestore (either locally for offline, or by server).
   await setDoc(newProductRef, fullProductData);
   return newProductRef.id;
 };
@@ -395,93 +400,85 @@ export const addTransaction = async (
 
   const newTransactionRef = doc(collection(db, "transactions"));
 
-  try {
-    await runTransaction(db, async (firestoreTransaction) => {
-      const transactionItems: TransactionItem[] = cartItems.map(item => ({
-        itemId: item.productId, // Use productId as itemId consistently
-        itemType: item.itemType || 'product',
-        name: item.name,
-        sku: item.sku || "", 
-        quantity: item.quantity,
-        unitPrice: item.price,
-        totalPrice: item.totalPrice,
-      }));
+  // This function now returns the promise from runTransaction
+  // The calling UI will decide whether to await it based on dataHandlingMode
+  return runTransaction(db, async (firestoreTransaction) => {
+    const transactionItems: TransactionItem[] = cartItems.map(item => ({
+      itemId: item.productId, // Use productId as itemId consistently
+      itemType: item.itemType || 'product',
+      name: item.name,
+      sku: item.sku || "", 
+      quantity: item.quantity,
+      unitPrice: item.price,
+      totalPrice: item.totalPrice,
+    }));
 
-      const transactionData: Transaction = {
-        id: newTransactionRef.id,
-        storeId,
-        transactionDisplayId: newTransactionRef.id.substring(0, 8).toUpperCase(),
-        timestamp: serverTimestamp() as Timestamp,
-        cashierId,
-        cashierName: cashierName || "N/A",
-        items: transactionItems,
-        subtotal,
-        discountAmount: discountAmountVal || 0,
-        promoCode: promoCodeVal || null,
-        taxAmount,
-        totalAmount,
-        paymentMethod,
-        paymentStatus: "completed", // Default to completed, can be updated later for offline scenarios
-        customerId: customerId || "",
-        customerName: customerName || "",
-        digitalReceiptSent: false, // Will be updated if sent
-        receiptChannel: null,
-        receiptRecipient: null,
-        offlineProcessed: false, // Default to false
-        syncedAt: null, 
-        notes: "",
-        originalTransactionId: "",
-        refundReason: "",
-        lastUpdatedAt: serverTimestamp() as Timestamp,
-      };
-      firestoreTransaction.set(newTransactionRef, transactionData);
+    const transactionData: Transaction = {
+      id: newTransactionRef.id,
+      storeId,
+      transactionDisplayId: newTransactionRef.id.substring(0, 8).toUpperCase(),
+      timestamp: serverTimestamp() as Timestamp,
+      cashierId,
+      cashierName: cashierName || "N/A",
+      items: transactionItems,
+      subtotal,
+      discountAmount: discountAmountVal || 0,
+      promoCode: promoCodeVal || null,
+      taxAmount,
+      totalAmount,
+      paymentMethod,
+      paymentStatus: "completed", // Default to completed, can be updated later for offline scenarios
+      customerId: customerId || "",
+      customerName: customerName || "",
+      digitalReceiptSent: false, // Will be updated if sent
+      receiptChannel: null,
+      receiptRecipient: null,
+      offlineProcessed: !navigator.onLine, // Basic check if transaction initiated offline
+      syncedAt: navigator.onLine ? serverTimestamp() as Timestamp : null, 
+      notes: "",
+      originalTransactionId: "",
+      refundReason: "",
+      lastUpdatedAt: serverTimestamp() as Timestamp,
+    };
+    firestoreTransaction.set(newTransactionRef, transactionData);
 
-      // Update product stock quantities
-      for (const item of cartItems) {
-        if (item.itemType === 'product' || !item.itemType) { // Treat undefined itemType as product
-          const productRef = doc(db, "products", item.productId);
-          const productSnap = await firestoreTransaction.get(productRef);
+    // Update product stock quantities
+    for (const item of cartItems) {
+      if (item.itemType === 'product' || !item.itemType) { // Treat undefined itemType as product
+        const productRef = doc(db, "products", item.productId);
+        const productSnap = await firestoreTransaction.get(productRef);
 
-          if (!productSnap.exists()) {
-            throw new Error(`Product with ID ${item.productId} (${item.name}) not found during transaction.`);
-          }
-
-          const currentStock = productSnap.data().stockQuantity as number;
-          const newStock = currentStock - item.quantity;
-
-          if (newStock < 0) {
-            // This check should ideally happen before reaching this point, 
-            // but it's a good safeguard in the transaction.
-            throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}, Requested: ${item.quantity}.`);
-          }
-          firestoreTransaction.update(productRef, { stockQuantity: newStock, lastUpdatedAt: serverTimestamp() });
+        if (!productSnap.exists()) {
+          throw new Error(`Product with ID ${item.productId} (${item.name}) not found during transaction.`);
         }
-      }
 
-      // Update customer total spent and loyalty points if customerId is provided
-      if (customerId) {
-        const customerRef = doc(db, "customers", customerId);
-        const customerSnap = await firestoreTransaction.get(customerRef);
-        if (customerSnap.exists()) {
-            const currentTotalSpent = customerSnap.data().totalSpent || 0;
-            const currentLoyaltyPoints = customerSnap.data().loyaltyPoints || 0;
-            // Example: 1 point per dollar spent
-            const pointsEarned = Math.floor(totalAmount); 
-            firestoreTransaction.update(customerRef, {
-                 totalSpent: currentTotalSpent + totalAmount,
-                 loyaltyPoints: currentLoyaltyPoints + pointsEarned,
-                 lastPurchaseAt: serverTimestamp() as Timestamp,
-                 lastUpdatedAt: serverTimestamp() as Timestamp
-            });
+        const currentStock = productSnap.data().stockQuantity as number;
+        const newStock = currentStock - item.quantity;
+
+        if (newStock < 0) {
+          throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}, Requested: ${item.quantity}.`);
         }
+        firestoreTransaction.update(productRef, { stockQuantity: newStock, lastUpdatedAt: serverTimestamp() });
       }
-    });
-    return newTransactionRef.id;
-  } catch (error) {
-    console.error("Transaction failed: ", error);
-    // Potentially re-throw or handle specific error types (e.g., stock issue vs. network)
-    throw error; // Re-throw to be caught by the calling UI
-  }
+    }
+
+    if (customerId) {
+      const customerRef = doc(db, "customers", customerId);
+      const customerSnap = await firestoreTransaction.get(customerRef);
+      if (customerSnap.exists()) {
+          const currentTotalSpent = customerSnap.data().totalSpent || 0;
+          const currentLoyaltyPoints = customerSnap.data().loyaltyPoints || 0;
+          const pointsEarned = Math.floor(totalAmount); 
+          firestoreTransaction.update(customerRef, {
+               totalSpent: currentTotalSpent + totalAmount,
+               loyaltyPoints: currentLoyaltyPoints + pointsEarned,
+               lastPurchaseAt: serverTimestamp() as Timestamp,
+               lastUpdatedAt: serverTimestamp() as Timestamp
+          });
+      }
+    }
+    return newTransactionRef.id; // runTransaction returns the value from the callback
+  });
 };
 
 
@@ -500,15 +497,4 @@ export const getTransactionsByStoreId = async (storeId: string | null, count: nu
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Transaction));
 };
-
-// Placeholder for future updateTransaction, if needed for things like updating paymentStatus for offline sync
-// export const updateTransaction = async (transactionId: string, data: Partial<Transaction>): Promise<void> => {
-//   const transactionRef = doc(db, "transactions", transactionId);
-//   await updateDoc(transactionRef, {
-//     ...data,
-//     lastUpdatedAt: serverTimestamp(),
-//   });
-// };
-
-
     
