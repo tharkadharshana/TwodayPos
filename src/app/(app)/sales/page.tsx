@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // Removed CardDescription as it's not used directly here
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -240,7 +240,7 @@ export default function SalesPage() {
     setAmountTendered("");
     setPromoCodeInput("");
     setAppliedPromoCode(null);
-    setAppliedDiscountAmount(0);
+    // setAppliedDiscountAmount(0); // This will be reset by the useEffect watching appliedPromoCode
     setReceiptRecipient("");
     if (clearLastAction) {
         setLastCartAction(null);
@@ -263,7 +263,6 @@ export default function SalesPage() {
     return Math.min(discount, currentSubtotal); // Discount cannot exceed subtotal
   };
 
-  // Recalculate discount whenever subtotal or appliedPromoCode changes
   React.useEffect(() => {
     setAppliedDiscountAmount(calculateDiscount(subtotal, appliedPromoCode));
   }, [subtotal, appliedPromoCode]);
@@ -276,7 +275,6 @@ export default function SalesPage() {
 
   let displayedCatalogItems = catalogItems;
   if (selectedCategory === "Favorites") {
-    // Demo: first 4 items or all if fewer than 4. Real app: use a 'isFavorite' flag or dedicated list.
     const favoriteCount = Math.min(4, catalogItems.length);
     displayedCatalogItems = catalogItems.slice(0, favoriteCount);
   } else if (selectedCategory !== "All") {
@@ -293,7 +291,7 @@ export default function SalesPage() {
   const handleApplyOrRemovePromoCode = () => {
     if (appliedPromoCode && promoCodeInput === "") { // Condition to remove
         setAppliedPromoCode(null);
-        setAppliedDiscountAmount(0);
+        // appliedDiscountAmount will be updated by useEffect
         toast({ title: "Promo Removed", description: "Discount has been removed from the order."});
         return;
     }
@@ -305,16 +303,11 @@ export default function SalesPage() {
     }
     const promoDetails = HARDCODED_PROMO_CODES[code];
     if (promoDetails) {
-        const calculatedDisc = calculateDiscount(subtotal, code);
-        setAppliedPromoCode(code);
-        setAppliedDiscountAmount(calculatedDisc); // This will also be set by the useEffect, but good to set here too.
+        setAppliedPromoCode(code); // This will trigger useEffect to recalculate discount
         toast({ title: "Promo Applied!", description: `Code "${code}" (${promoDetails.description || ''}) applied.`});
         setPromoCodeInput("");
     } else {
         toast({ title: "Invalid Code", description: `Promo code "${code}" is not valid.`, variant: "destructive"});
-        // Do not clear an existing valid promo if an invalid one is entered
-        // setAppliedPromoCode(null); 
-        // setAppliedDiscountAmount(0);
     }
   };
 
@@ -367,13 +360,13 @@ export default function SalesPage() {
         userDoc.displayName,
         cartItems, 
         subtotal,
-        tax, // tax is calculated on subtotalAfterDiscount
+        tax, 
         total,
         selectedPaymentMethod || "other", 
         selectedCustomerId,
         customerForTx?.name,
-        appliedDiscountAmount, // Pass the discount amount
-        appliedPromoCode // Pass the promo code key
+        appliedDiscountAmount, 
+        appliedPromoCode
       );
       toast({ title: "Sale Finalized!", description: "Transaction saved." });
       resetTerminalState(true, true); 
@@ -405,7 +398,7 @@ export default function SalesPage() {
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomerId(customer.id);
     setSelectedCustomerName(customer.name);
-    setReceiptRecipient(customer.email || customer.phone || ""); // Pre-fill for receipt step
+    setReceiptRecipient(customer.email || customer.phone || ""); 
     setIsCustomerModalOpen(false);
     setCustomerSearchTerm("");
     toast({ title: "Customer Assigned", description: `${customer.name} assigned to this transaction.`});
@@ -414,7 +407,7 @@ export default function SalesPage() {
   const handleClearCustomer = () => {
     setSelectedCustomerId(undefined);
     setSelectedCustomerName(undefined);
-    setReceiptRecipient(""); // Clear pre-fill
+    setReceiptRecipient(""); 
     toast({ title: "Customer Cleared", description: "Customer unassigned from transaction."});
   };
 
@@ -582,9 +575,27 @@ export default function SalesPage() {
                   </div>
                 </div>
                 <p className="font-semibold text-foreground w-20 text-right">${item.totalPrice.toFixed(2)}</p>
-                <Button variant="ghost" size="icon" className="ml-1 text-muted-foreground hover:text-destructive" onClick={() => removeFromCart(item.productId, item.itemType!)} aria-label={`Remove ${item.name} from cart`}>
-                    <Trash2 className="h-4 w-4"/>
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="ml-1 text-muted-foreground hover:text-destructive" aria-label={`Remove ${item.name} from cart`}>
+                        <Trash2 className="h-4 w-4"/>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove Item?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to remove "{item.name}" from the cart?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => removeFromCart(item.productId, item.itemType!)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             ))}
             {cartItems.length === 0 && <p className="text-center text-muted-foreground py-10">Your cart is empty. Add items to get started!</p>}
@@ -788,3 +799,4 @@ export default function SalesPage() {
     </div>
   );
 }
+
