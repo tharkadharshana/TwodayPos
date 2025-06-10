@@ -5,40 +5,39 @@ This document lists features that are currently placeholders, partially implemen
 
 ## I. Major Features & Systems to Implement/Complete
 
-1.  **User Roles & Permissions**:
-    *   Implement distinct functionalities and UI restrictions based on user roles (e.g., 'manager', 'cashier' vs. 'admin').
-    *   Secure Firestore rules to enforce these roles server-side.
+1.  **User Roles & Permissions (Full Implementation)**:
+    *   **Admin User Management UI**: Admins need a UI (e.g., `/settings/users`) to invite/add new users (cashiers, managers) to their store, assign/change roles, and deactivate accounts.
+    *   **Modify Registration**: Decide if public registration should continue to create new stores/admins, or shift to an invite-only system for adding users to existing stores.
+    *   **Page-Level Access Control**: Server-side or robust client-side checks on each page to prevent direct URL access by unauthorized roles.
+    *   **Component-Level Access Control**: Conditionally render UI elements/actions within pages based on role (e.g., only managers see 'Edit Product', cashiers can't access settings).
+    *   **Firestore Security Rules**: Implement comprehensive Firestore security rules to enforce data access and modification permissions for each role at the backend. This is critical for security.
 2.  **Payment Gateway Integration**:
-    *   Integrate with real payment gateways (e.g., Stripe, Square, Adyen) for actual card processing.
+    *   Integrate with real payment gateways (e.g., Stripe, Square) for actual card processing.
     *   Handle payment intents, tokenization, and secure transaction processing.
     *   Manage payment terminal hardware integration if applicable.
-3.  **Appointment Booking System**:
+3.  **Appointment Booking System (for Services)**:
     *   For services marked as `isBookable`.
     *   Calendar UI for viewing availability and booking appointments.
     *   Staff assignment and resource management for bookings.
     *   Customer notifications for bookings (confirmations, reminders).
 4.  **Advanced Reporting & Analytics**:
-    *   Develop comprehensive reports beyond basic transaction listing:
-        *   Sales summaries (daily, weekly, monthly, by product, by category, by staff).
-        *   Profit and loss analysis.
-        *   Inventory value and turnover.
-        *   Customer analytics (top spenders, purchase frequency).
-    *   Visual dashboards with customizable date ranges and filters.
-    *   Consider using Firebase Functions for data aggregation and Cloud Storage for report generation.
+    *   Develop comprehensive reports beyond basic transaction listing: sales summaries (by product, category, staff, time period), profit/loss, inventory value, customer analytics.
+    *   Visual dashboards with customizable date ranges and filters, using live aggregated data.
+    *   Consider Firebase Functions for data aggregation.
 5.  **Full "Cloud Only (Strict Sync)" Mode Implementation**:
-    *   Extend the `await` and UI blocking pattern to *all* data write operations throughout the application when this mode is active.
-    *   Implement a global UI loading/blocking state manager to prevent concurrent operations or navigation during strict sync writes.
+    *   Extend the `await` and UI blocking pattern to *all* data write operations throughout the application when this mode is active (currently demonstrated for add/edit product and finalize sale).
+    *   Implement a global UI loading/blocking state manager for this mode.
     *   Evaluate if reads should also bypass cache (`getDocFromServer`, `getDocsFromServer`) in this mode for absolute consistency, and implement if necessary.
 6.  **Real-time Multi-Terminal Stock & Data Updates**:
-    *   While Firestore syncs eventually, achieving near real-time stock visibility across all active terminals without any delay might require Firestore real-time listeners on critical data (e.g., product stock) and more sophisticated client-side state management to merge these updates.
-    *   Consider strategies for broadcasting urgent updates (e.g., last item sold).
+    *   While Firestore syncs, achieving near real-time stock visibility across all active terminals without *any* delay might require Firestore real-time listeners on critical data (e.g., product stock) and more sophisticated client-side state management for merging updates.
+7.  **Advanced Offline Conflict Resolution UI**:
+    *   For "Offline Friendly" mode, design and implement UI/UX for handling scenarios where an offline-queued operation (e.g., transaction) fails during server sync due to conflicts (e.g., insufficient stock discovered upon sync). This involves alerting the user and providing tools to resolve the issue (e.g., voiding part of a sale, suggesting alternatives).
 
 ## II. Specific Page/Feature TODOs
 
 ### A. Dashboard (`/dashboard`)
 -   Connect charts and KPI cards to live, aggregated data from Firestore.
 -   Implement dynamic date range filters for all dashboard widgets.
--   Allow customization of dashboard layout and widgets.
 
 ### B. Terminal (`/terminal`)
 -   **Payment**:
@@ -49,26 +48,15 @@ This document lists features that are currently placeholders, partially implemen
     *   Develop a system for managing and validating more complex promo codes (e.g., usage limits, expiry dates, item-specific).
 -   **Receipts**:
     *   Integrate with services like Twilio (SMS) and SendGrid/Mailgun (Email) for actual digital receipt sending.
-    *   Implement receipt printing functionality (browser print or via connected receipt printers).
--   **Hardware Integration**:
-    *   Interface with barcode scanners for quick item lookup.
-    *   Integrate with cash drawers.
--   **UI/UX**:
-    *   Keyboard shortcuts for common actions (e.g., add to cart, payment, search).
-    *   Configurable quick-add buttons for popular items.
-    *   "Park Sale" / "Hold Sale" functionality.
-    *   Tip management.
+    *   Implement receipt printing functionality.
+-   **Hardware Integration**: Interface with barcode scanners, cash drawers.
+-   **UI/UX**: Keyboard shortcuts, configurable quick-add buttons, "Park Sale" / "Hold Sale", tip management.
 
 ### C. Inventory (`/inventory`)
 -   **CSV Import**: Implement full CSV parsing logic to create/update products in Firestore. Include error handling and preview for imported data.
--   **Stock Adjustments**:
-    *   Dedicated UI/flow for adjusting stock quantities (e.g., receiving new stock, stock counts, marking shrinkage/damage).
-    *   Log stock adjustment history.
--   **Product History**: Implement "View Product History" to show sales, stock adjustments, and price changes for a product.
--   **Advanced Product Features**:
-    *   Product variants (e.g., size, color) with separate SKUs, prices, and stock.
-    *   Modifiers/Add-ons for products.
-    *   Composite products/bundles.
+-   **Stock Adjustments**: Dedicated UI/flow for adjusting stock quantities (receiving, counts, shrinkage/damage) with history logging.
+-   **Product History**: View sales, stock adjustments, price changes for a product.
+-   **Advanced Product Features**: Product variants, modifiers, composite products/bundles.
 -   **Purchase Orders**: System for creating and managing purchase orders to suppliers.
 
 ### D. Services (`/services`)
@@ -83,19 +71,15 @@ This document lists features that are currently placeholders, partially implemen
 -   Customer tagging and segmentation.
 
 ### F. Transactions (`/transactions`)
--   **Refunds**:
-    *   Implement a full refund process (partial or full).
-    *   Handle stock return for refunded products.
-    *   Link refunded transactions to original sales.
-    *   Update customer spending/loyalty data.
+-   **Refunds**: Implement a full refund process (partial/full), handle stock return, link to original sale, update customer data.
 -   **CSV Export**: Implement CSV export for the transaction list with selected filters.
 -   **End-of-Day/Shift Reports**: UI for generating Z-reports or shift summaries.
 
 ### G. AI Predictive Inventory (`/inventory/predictive`)
 -   Connect AI input forms to live product data from Firestore instead of mock product lists.
--   Refine Genkit prompts with more sophisticated logic based on real store data patterns (e.g., seasonality, promotions).
--   Consider using Firebase Functions to run AI analysis periodically in the background and store results for quick retrieval.
--   UI for users to provide feedback on AI suggestions to improve the models.
+-   Refine Genkit prompts with more sophisticated logic based on real store data patterns.
+-   Consider using Firebase Functions for periodic background AI analysis.
+-   UI for users to provide feedback on AI suggestions.
 
 ### H. Settings
 -   **Store Settings (`/settings/store`)**:
@@ -104,64 +88,36 @@ This document lists features that are currently placeholders, partially implemen
     *   Save all customization options to the `Store` document in Firestore.
     *   Dynamically apply these settings when generating/displaying receipts.
     *   Implement "Send Test Receipt" functionality.
--   **Tax Settings (`/settings/taxes`)**:
-    *   UI for detailed tax rule configuration (e.g., multiple tax rates, location-based taxes, item-specific tax exemptions).
-    *   Apply these rules correctly during transaction calculation.
--   **Business Hours (`/settings/hours`)**:
-    *   UI to set operational hours for different days of the week.
-    *   Save to `Store` document.
-    *   Potentially use this information elsewhere in the app (e.g., disabling online orders outside hours).
--   **User Management (`/settings/users`)**:
-    *   UI for admins to invite, add, edit, and deactivate user accounts within their store.
-    *   Assign roles (admin, manager, cashier) to users.
--   **Notifications (`/settings/notifications`)**:
-    *   Implement an actual notification system (in-app, email, or push) for events like low stock alerts, large sales, etc.
-    *   User preferences for which notifications to receive.
--   **Product Settings (Global) (`/settings/products`)**:
-    *   Manage global product categories.
-    *   Define templates for product variants and modifiers.
--   **Security (`/settings/security`)**:
-    *   Implement Two-Factor Authentication (2FA) options for users.
-    *   Password policies and reset mechanisms.
-    *   Audit logs for sensitive actions.
--   **Devices (`/settings/devices`)**:
-    *   UI to register and manage POS devices/terminals associated with the store.
-    *   Assign terminal-specific settings (e.g., default receipt printer).
--   **Subscription (`/settings/subscription`)**:
-    *   Integrate with a billing platform (e.g., Stripe Billing) to manage subscription plans, payments, and feature access based on plan.
+-   **Tax Settings (`/settings/taxes`)**: UI for detailed tax rule configuration and application.
+-   **Business Hours (`/settings/hours`)**: UI to set operational hours, save to `Store` doc.
+-   **Notifications (`/settings/notifications`)**: Actual notification system (in-app, email, push) and user preferences.
+-   **Product Settings (Global) (`/settings/products`)**: Manage global product categories, variant/modifier templates.
+-   **Security (`/settings/security`)**: Two-Factor Authentication (2FA), password policies, audit logs.
+-   **Devices (`/settings/devices`)**: Register and manage POS devices/terminals, assign terminal-specific settings.
+-   **Subscription (`/settings/subscription`)**: Integrate with a billing platform for plan management.
+-   **Appearance (`/settings/appearance`)**: Implement actual theme customization options.
+-   **Integrations (`/settings/integrations`)**: Develop actual third-party integrations.
+-   **Payment Gateways (`/settings/payments`)**: Implement connections beyond placeholders.
+-   **User Management (`/settings/users`)**: Build the UI as per section I.1.
 
 ## III. General System Enhancements
 
-1.  **Comprehensive Error Handling**:
-    *   More granular error handling for Firestore operations and API calls.
-    *   User-friendly error messages and recovery options.
-    *   Centralized error logging (e.g., Sentry, Firebase Crashlytics).
+1.  **Comprehensive Error Handling**: Granular error handling for all operations, user-friendly messages, centralized logging.
 2.  **Testing**:
     *   **Unit Tests**: For individual functions and components.
     *   **Integration Tests**: For interactions between components and services.
-    *   **End-to-End (E2E) Tests**: For critical user flows (e.g., completing a sale, adding a product).
+    *   **End-to-End (E2E) Tests**: For critical user flows.
 3.  **Performance Optimization**:
-    *   Analyze and optimize Firestore query performance, especially for large datasets (indexing, data denormalization if necessary).
-    *   Lazy loading components and routes.
-    *   Image optimization.
+    *   Analyze and optimize Firestore query performance for large datasets (indexing, data denormalization if necessary).
+    *   Lazy loading components and routes where appropriate.
+    *   Image optimization strategy.
     *   Bundle size reduction.
-4.  **Accessibility (a11y)**:
-    *   Conduct a full accessibility review (WCAG compliance).
-    *   Ensure proper ARIA attributes, keyboard navigation, and screen reader compatibility.
-5.  **Internationalization (i18n) & Localization (l10n)**:
-    *   If the application needs to support multiple languages and regions.
-    *   Framework for managing translations.
-    *   Formatting for dates, numbers, and currencies based on locale.
-6.  **Accurate Pending Write Detection for Sync Indicator**:
-    *   For "Offline Friendly" mode, investigate more accurate ways to determine if Firestore has pending writes queued locally, rather than the current simulation. This might involve listening to metadata changes on queries or using more advanced Firestore SDK features if available.
-7.  **Client-Side Conflict Resolution UI (Offline Friendly Mode)**:
-    *   Design and implement UI/UX for handling scenarios where an offline-queued transaction fails during server sync due to conflicts (e.g., insufficient stock discovered upon sync). This involves alerting the user and providing tools to resolve the issue.
-8.  **Database Seeding & Migrations**:
-    *   Implement more robust scripts for seeding development/staging databases.
-    *   Develop a strategy for handling data schema migrations as the application evolves.
-9.  **Documentation**:
-    *   User guides for cashiers and administrators.
-    *   Developer documentation for API endpoints and system architecture.
+    *   Strategies for efficient initial data load and caching for very large catalogs (50k+ items).
+4.  **Accessibility (a11y)**: Full accessibility review (WCAG compliance), ensure ARIA attributes, keyboard navigation, screen reader compatibility.
+5.  **Internationalization (i18n) & Localization (l10n)**: Framework for translations, locale-based formatting if needed.
+6.  **Accurate Pending Write Detection for Sync Indicator**: For "Offline Friendly" mode, investigate more accurate ways to determine if Firestore has pending writes queued locally, rather than the current simulation based on `navigator.onLine`.
+7.  **Database Seeding & Migrations**: Robust scripts for seeding, strategy for schema migrations.
+8.  **Documentation**: User guides, developer documentation.
 
 This list represents a significant amount of work but covers key areas for maturing the PerfectPOS application.
 

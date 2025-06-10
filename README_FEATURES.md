@@ -4,14 +4,14 @@
 This document outlines the current features and functionalities implemented in the PerfectPOS system.
 
 ## Core Technologies
-- **Next.js**: Framework for server-rendered React applications.
+- **Next.js**: Framework for server-rendered React applications (App Router).
 - **React**: JavaScript library for building user interfaces.
 - **ShadCN UI**: Re-usable UI components.
 - **Tailwind CSS**: Utility-first CSS framework for styling.
 - **Firebase**: Backend platform, primarily using:
-    - **Firestore**: NoSQL database for storing application data (products, transactions, users, store settings).
+    - **Firestore**: NoSQL database for storing application data (products, transactions, users, store settings). Offline persistence is enabled via Firestore's `persistentLocalCache` (using IndexedDB), forming the backbone of the "Offline Friendly" mode.
     - **Firebase Authentication**: For user login and registration.
-- **Genkit (Firebase AI)**: Toolkit for integrating AI features (used for predictive inventory).
+- **Genkit (Firebase AI)**: Toolkit for integrating AI features (used for predictive inventory, with mock product data in forms).
 - **TypeScript**: For static typing and improved code quality.
 - **Zod**: For schema validation.
 - **React Hook Form**: For form management.
@@ -22,27 +22,23 @@ This document outlines the current features and functionalities implemented in t
     - Basic error handling for invalid credentials or too many attempts.
     - UI placeholder for Biometric Login (functionality not implemented).
 - **Registration**:
-    - New users can register with a display name, email, and password.
+    - New users can register with a display name, email, and password. All new users are currently created as 'admin' of their own new store.
     - Passwords require confirmation.
-    - Upon successful registration, an initial `Store` document and a `UserDocument` are automatically created in Firestore, linking the user to their new store.
+    - Upon successful registration, an initial `Store` document (with `dataHandlingMode` defaulting to `offlineFriendly`) and a `UserDocument` (with `role: 'admin'`) are automatically created in Firestore, linking the user to their new store.
 
 ## 2. Application Shell & Navigation
 - **Responsive Sidebar**:
     - Collapsible sidebar for navigation (icon-only or full view).
     - Adapts to mobile view with an off-canvas drawer.
+    - Navigation items are filtered based on the logged-in user's role (`admin`, `manager`, `cashier`).
 - **User Menu**:
     - Displays logged-in user's avatar and name/email.
-    - Dropdown with links:
-        - Profile (placeholder page).
-        - Billing (placeholder page).
-        - Settings (navigates to `/settings`).
-        - Logout (signs out the user and redirects to login).
+    - Dropdown with links: Profile (placeholder), Billing (placeholder), Settings (navigates to `/settings`), Logout.
 - **Theme Toggle**: Allows users to switch between Light, Dark, and System themes.
 - **Sync Status Indicator**:
     - Visually indicates the browser's online/offline status (`navigator.onLine`).
-    - Simulates a "syncing" state (pulsing yellow icon) when transitioning from offline to online.
-    - Shows "Online & Synced" (green icon) or "Offline" (red icon) with corresponding tooltips.
-    - The "pending items" count in the tooltip is currently a basic simulation.
+    - Simulates a "syncing" state (pulsing yellow icon) when transitioning from offline to online or on initial load.
+    - Shows "Online & Synced" (green icon) or "Offline" (red icon) with corresponding tooltips. This indicator reflects browser connectivity; Firestore's internal sync queue is not directly displayed.
 
 ## 3. Dashboard (`/dashboard`)
 - Displays static sample data for:
@@ -52,10 +48,11 @@ This document outlines the current features and functionalities implemented in t
     - **Top Selling Products List**: List of products by revenue/quantity.
     - **Inventory Alerts**: Mock alerts for low stock items and reorder confirmations.
 - Charts use `recharts` and `shadcn/ui` chart components.
+- Accessible to `admin`, `manager`, `cashier`.
 
 ## 4. Terminal (`/terminal` - formerly Sales)
 - **Catalog Display**:
-    - Grid layout showing available products and services.
+    - Grid layout showing available products and services fetched from Firestore.
     - Products display image (or placeholder), name, price, and stock quantity.
     - Services display image (or `ConciergeBell` icon), name, price, and duration (if any).
     - Items out of stock are visually distinct and cannot be added to the cart.
@@ -74,7 +71,7 @@ This document outlines the current features and functionalities implemented in t
         - Search customers by name, email, or phone.
         - Select a customer from the search results.
     - Add a new customer directly from the same modal:
-        - Form for name (required), email, phone, notes.
+        - Form for name (required), email, phone, notes (using `react-hook-form` and `zod`).
         - Saves the new customer to Firestore and assigns them to the current transaction.
     - Clear assigned customer from the transaction.
 - **Discounts**:
@@ -83,25 +80,16 @@ This document outlines the current features and functionalities implemented in t
 - **Payment Processing (Simulated)**:
     - Multi-step checkout process (Order -> Payment -> Receipt).
     - Select payment method: Cash or Card. UI placeholders for "Split Payment" and "Other Methods".
-    - **Cash Payment**:
-        - Input for amount tendered.
-        - Quick tender amount buttons.
-        - Calculates and displays change due.
-        - "Process Cash" button (simulates processing).
-    - **Card Payment**:
-        - Displays total and a message to use the card terminal.
-        - "Process Card" button (simulates processing).
-- **Digital Receipts (Simulated)**:
-    - After payment processing, options to:
-        - Enter recipient's phone or email.
-        - "Send SMS" or "Send Email" (shows a toast, no actual sending).
-        - "No Receipt" option.
+    - **Cash Payment**: Input for amount tendered, quick tender buttons, calculates change.
+    - **Card Payment**: Displays total, message to use card terminal.
+- **Digital Receipts (Simulated)**: Options for phone/email input, "Send SMS"/"Send Email" (shows toast), "No Receipt".
 - **Transaction Finalization**:
-    - Saves the transaction details (items, totals, customer, cashier, payment method, promo code, terminal ID) to Firestore.
-    - If products are sold, their `stockQuantity` is decremented in Firestore.
-    - Customer's `totalSpent`, `loyaltyPoints`, and `lastPurchaseAt` are updated if a customer is assigned.
-    - Handles data saving according to the selected `dataHandlingMode` (awaits for 'cloudOnlyStrict', optimistic for 'offlineFriendly').
-- **Layout**: Responsive three-column layout designed for POS operations, with minimum column widths for better stability on various screen sizes.
+    - Saves transaction details (items, totals, customer, cashier, payment, promo, terminal ID) to Firestore.
+    - Decrements product `stockQuantity` in Firestore if products are sold.
+    *   Updates customer `totalSpent`, `loyaltyPoints`, `lastPurchaseAt` if assigned.
+    *   **Data Handling Mode Aware**: If `dataHandlingMode` is 'cloudOnlyStrict', waits for Firestore server confirmation before completing. Otherwise (offlineFriendly), writes are optimistic.
+- **Layout**: Responsive three-column layout with minimum column widths for better stability.
+- Accessible to `admin`, `manager`, `cashier`.
 
 ## 5. Inventory Management (`/inventory`)
 - **Product Listing**:
@@ -109,37 +97,37 @@ This document outlines the current features and functionalities implemented in t
     - Shows image, name, SKU, category, price, stock quantity, and status.
 - **Search**: Filter products by name, SKU, or category.
 - **Add New Product (`/inventory/add`)**:
-    - Dedicated form with fields for all product attributes (name, SKU, price, stock, category, description, low stock threshold, image URL, supplier, barcode, visibility).
+    - Dedicated form with fields for all product attributes.
     *   Input validation using Zod and React Hook Form.
     *   Saves the new product to Firestore.
-    *   Handles data saving according to `dataHandlingMode`.
+    *   **Data Handling Mode Aware**: If `dataHandlingMode` is 'cloudOnlyStrict', waits for Firestore server confirmation before completing. Otherwise (offlineFriendly), writes are optimistic.
 - **Edit Product (`/inventory/edit/[productId]`)**:
     - Dedicated form pre-filled with the selected product's data from Firestore.
     - Allows modification of product attributes.
     - Updates the product in Firestore.
-    *   Handles data saving according to `dataHandlingMode`.
+    *   **Data Handling Mode Aware**: If `dataHandlingMode` is 'cloudOnlyStrict', waits for Firestore server confirmation. Otherwise (offlineFriendly), writes are optimistic.
 - **Delete Product**:
     - Option in each product row's dropdown menu.
     - Triggers a confirmation dialog before deletion.
     - Removes the product from Firestore.
 - **Stock Status Badges**: Visually indicates "In Stock", "Low Stock", or "Out of Stock".
 - **CSV Data Management**:
-    - **Export All Products**: Downloads a CSV file of all products for the store.
-    - **Export CSV Template**: Downloads a blank CSV template for importing products.
-    - **Import CSV**: UI to select a CSV file. Actual data parsing and import logic is a TODO.
+    - **Export All Products**: Downloads a CSV file of all products.
+    - **Export CSV Template**: Downloads a blank CSV template.
+    - **Import CSV**: UI to select a CSV file. Actual data parsing/import logic is a TODO.
 - **Link to AI Predictions**: Navigates to the AI Predictive Inventory page.
+- Accessible to `admin`, `manager`.
 
 ## 6. AI Predictive Inventory (`/inventory/predictive`)
 - **UI for AI Flows**:
     - Separate cards for "Predict Stock-Outs" and "Smart Reorder Suggestions".
-    - Forms allow selecting a (mock) product from a predefined list.
+    - Forms allow selecting a (mock) product from a predefined list (not live inventory data).
     - Product details (current stock, sales velocity, lead time) are displayed based on selection.
 - **Genkit Integration**:
-    - Buttons trigger calls to Genkit flows:
-        - `predictStockOuts`: Takes product info and returns a stock-out prediction and basic reorder suggestion.
-        - `getSmartReorderSuggestions`: Takes product info and sales timeframe, returns suggested reorder quantity, low stock alert status, and reasoning.
-    - Results from the AI flows are displayed below the respective forms.
+    - Buttons trigger calls to Genkit flows: `predictStockOuts`, `getSmartReorderSuggestions`.
+    - Results from the AI flows are displayed.
     - Genkit setup (`ai/genkit.ts`) uses Google AI models.
+- Accessible to `admin`, `manager`.
 
 ## 7. Services Management (`/services`)
 - **Service Listing**:
@@ -147,103 +135,81 @@ This document outlines the current features and functionalities implemented in t
     - Shows name, category, price, duration, and visibility status.
 - **Search**: Filter services by name, category, or description.
 - **Add New Service (`/services/add`)**:
-    - Dedicated form for service attributes (name, price, duration, category, description, image URL, visibility, bookable status).
+    - Dedicated form for service attributes.
     - Input validation using Zod and React Hook Form.
     - Saves the new service to Firestore.
 - **Delete Service**:
-    - Option in each service row's dropdown menu.
-    - Triggers a confirmation dialog.
+    - Option in each service row's dropdown menu with confirmation dialog.
     - Removes the service from Firestore.
 - **Visibility Badge**: Shows if a service is "Visible" or "Hidden" on the POS.
-- **CSV Data Management**:
-    - **Export All Services**: Downloads a CSV of all services.
-    - **Export CSV Template**: Downloads a blank CSV template for services.
-    - **Import CSV**: UI to select a CSV file. Actual import logic is a TODO.
+- **CSV Data Management**: Export all, export template. Import CSV UI is present, logic is a TODO.
 - **Edit Service**: Menu item is present but disabled (functionality is a TODO).
+- Accessible to `admin`, `manager`.
 
 ## 8. Customer Management (`/customers`)
 - **Customer Listing**:
     - Displays a table of customers fetched live from Firestore for the user's store.
-    - Shows avatar (placeholder), name, contact info (email/phone), total spent, and loyalty points.
+    - Shows avatar, name, contact info, total spent, loyalty points.
 - **Search**: Filter customers by name, email, or phone.
-- **Actions (Placeholders)**: Dropdown menu for each customer includes:
-    - Edit Profile (TODO)
-    - View Purchase History (TODO)
-    - Adjust Loyalty Points (TODO)
-    - Delete Customer (TODO)
+- **Actions (Placeholders)**: Edit Profile, View Purchase History, Adjust Loyalty, Delete Customer are TODOs.
 - **Add Customer**: Functionality is integrated into the Terminal page modal.
+- Accessible to `admin`, `manager`.
 
 ## 9. Transaction History (`/transactions`)
 - **Transaction Listing**:
     - Displays a table of the most recent (default 50) transactions from Firestore for the user's store.
-    - Shows transaction ID (shortened), date/time, customer name, cashier name, total amount, and payment status.
+    - Shows transaction ID, date/time, customer, cashier, total, and status.
 - **Search**: Filter transactions by ID, customer name, or cashier name.
-- **View Details**:
-    - Clicking "View Details" in a transaction's dropdown opens a modal.
-    - Modal displays:
-        - Full transaction ID and timestamp.
-        - Customer and cashier names.
-        - Detailed list of items (name, quantity, unit price, total price).
-        - Financial summary (subtotal, discount with promo code if any, tax, total paid).
-        - Payment method and status (with badge).
-        - Digital receipt status, channel, and recipient (if applicable).
-        - Notes, offline processing/sync status (if applicable).
-- **Modal Actions**:
-    - **Resend Receipt (Simulated)**: Shows a toast; actual sending is a TODO. Disabled if no recipient info.
-    - **Start Refund (Placeholder)**: Shows a toast; full refund process is a TODO. Visible for 'completed' transactions.
-- **Status Badges**: Color-coded badges for transaction status (e.g., completed, refunded).
+- **View Details**: Modal displays full transaction details.
+- **Modal Actions**: "Resend Receipt" (simulated), "Start Refund" (placeholder).
+- **Status Badges**: Color-coded badges for transaction status.
 - **CSV Export (Placeholder)**: Button exists, functionality is a TODO.
+- Accessible to `admin`, `manager`, `cashier`.
 
 ## 10. Settings
-- **Main Settings Page (`/settings`)**: A hub with cards linking to various settings sub-pages.
+- **Main Settings Page (`/settings`)**: Hub with cards linking to sub-pages. Accessible to `admin`, `manager`, `cashier`.
 - **Store Settings (`/settings/store`)**:
-    - Form to edit store details: name, slogan, logo URL (with local preview on file select), contact phone, email, full address.
-    - Form to edit default tax rate (as a decimal, e.g., 0.08 for 8%) and currency code (e.g., USD).
+    - Form to edit store details (name, slogan, logo URL, contact, address).
+    - Form to edit default tax rate and currency code.
     - Options for "Show address on digital receipts" and "Display online ordering link".
     - Saves changes to the `Store` document in Firestore.
+    - Accessible to `admin`, `manager`.
 - **Receipt Settings (`/settings/receipts`)**:
-    - UI to customize digital receipts:
-        - Upload new logo (placeholder, shows preview).
-        - Header and footer messages.
-        - Checkboxes for information to display (store name, address, phone, cashier, time, loyalty points).
-        - Default messages for SMS and Email receipts (with placeholder support like `{StoreName}`).
-    - Includes a static preview of how a receipt might look.
-    - Saving these settings to Firestore and applying them is a TODO. "Send Test Receipt" is a placeholder.
+    - UI to customize digital receipts (logo upload placeholder, header/footer messages, display options, default SMS/Email messages).
+    - Static preview. Saving settings and applying them is a TODO. "Send Test Receipt" is a placeholder.
+    - Accessible to `admin`, `manager`.
 - **Offline & Sync Settings (`/settings/offline-sync`)**:
     - Allows users to choose a data handling mode:
         - **Offline Friendly (Recommended)**: Default. Leverages Firestore's built-in persistent cache.
-        - **Cloud Only (Strict Sync)**: Makes critical operations (add/edit product, finalize sale) `await` server confirmation.
-    - The selected preference is saved to the `Store` document in Firestore.
-    - The `UserContext` makes this mode available globally for components to adapt their behavior.
+        - **Cloud Only (Strict Sync)**: See "Data Handling & Offline Support" section below.
+    - The selected preference is saved to the `Store` document in Firestore and made available globally via `UserContext`.
+    - Accessible to `admin`, `manager`.
+- **Developer Tools (`/dev/populate-data`)**:
+    - Page to populate dummy products, customers, and transactions.
+    - Accessible to `admin`.
 - **Placeholder Settings Pages**:
-    - Appearance, Devices, Business Hours, Integrations, Notifications, Product Settings (global), Payment Gateways, Security, Subscription, Tax Settings, User Management.
-    - These pages currently display a message indicating the feature is under development.
+    - Appearance, Devices, Business Hours, Integrations, Notifications, Product Settings (global), Payment Gateways, Security, Subscription, Tax Settings, User Management. These are stubs.
 
 ## 11. Data Handling & Offline Support
-- **Offline Friendly Mode (Default)**:
-    - **Firestore Persistent Cache**: Enabled via `persistentLocalCache` in `src/lib/firebase.ts`. Firestore uses IndexedDB to store data locally, allowing the app to function offline by reading from and writing to this cache.
-    - **Automatic Sync**: Firestore's SDK handles syncing local changes to the cloud when online and fetching updates from the server.
-    - **Optimistic Writes**: UI updates immediately upon local cache write, providing a responsive experience.
-- **Cloud Only (Strict Sync) Mode**:
-    - **Behavior**: When selected in settings, specific critical operations are modified:
-        - **Add Product**: Waits for Firestore server confirmation before completing.
-        - **Edit Product**: Waits for Firestore server confirmation.
-        - **Finalize Sale (Terminal)**: Waits for Firestore server confirmation for the transaction and related updates.
-    - **UI Feedback**: During these awaited operations, relevant buttons (Save, Process Payment) are disabled and may show a loader.
-    - **Partial Implementation**: This strict behavior is currently implemented for the key flows mentioned above. Extending it to all write operations across the application is a significant future task.
+- **Data Handling Modes**: User can choose between "Offline Friendly" and "Cloud Only (Strict Sync)" in settings.
+    - **Offline Friendly Mode (Default & Recommended)**:
+        - **Firestore Persistent Cache**: Enabled via `persistentLocalCache` in `src/lib/firebase.ts`. Firestore uses IndexedDB to store data locally, allowing the app to function offline by reading from and writing to this cache.
+        - **Automatic Sync**: Firestore's SDK handles syncing local changes to the cloud when online and fetching updates.
+        - **Optimistic Writes**: UI updates immediately upon local cache write.
+    - **Cloud Only (Strict Sync) Mode**:
+        - **Behavior**: When selected, specific critical operations are modified to `await` server confirmation:
+            - **Add Product**: Waits for Firestore server confirmation.
+            - **Edit Product**: Waits for Firestore server confirmation.
+            - **Finalize Sale (Terminal)**: Waits for Firestore server confirmation.
+        - **UI Feedback**: During these awaited operations, relevant buttons are disabled and may show a loader.
+        - **Partial Implementation**: This strict behavior is currently implemented for the key flows mentioned above as a demonstration. Extending it to *all* write operations across the application is a significant future task.
 
-## 12. Developer Utilities
-- **Populate Dummy Data (`/dev/populate-data`)**:
-    - A page accessible to developers to add sample products, customers, and transactions to their store.
-    - Useful for testing and development without manual data entry.
-    - Displays toast notifications for progress.
-
-## 13. Code Structure & Quality
+## 12. Code Structure & Quality
 - **TypeScript**: Used throughout for type safety.
-- **Modular Components**: UI elements are broken down into re-usable components (largely from ShadCN).
-- **Utility Functions**: Helper functions for common tasks (e.g., `cn` for class names, Firestore interactions in `firestoreUtils.ts`).
+- **Modular Components**: UI elements are broken down into re-usable components.
+- **Utility Functions**: Helper functions for common tasks (`cn`, Firestore interactions in `firestoreUtils.ts`).
 - **Context API**: `UserContext` for managing global user state, store details, and selected data handling mode.
-- **Environment Variables**: Firebase configuration is managed via `.env` variables (e.g., `NEXT_PUBLIC_FIREBASE_API_KEY`).
+- **Environment Variables**: Firebase configuration managed via `.env`.
 
 This summary covers the main features and their current state of implementation.
 
