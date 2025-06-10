@@ -292,7 +292,8 @@ export const updateService = async (serviceId: string, data: Partial<Service>): 
     throw new Error("updateService called without a serviceId.");
   }
   const serviceRef = doc(db, "services", serviceId);
-  const { storeId, ...updateDataSafe } = data;
+  // Destructure to remove fields that should not be directly updated or are handled by serverTimestamp
+  const { id, storeId, createdAt, ...updateDataSafe } = data;
   await updateDoc(serviceRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -509,3 +510,5 @@ export const getTransactionsByStoreId = async (storeId: string | null, count: nu
 //   });
 // };
 
+
+    

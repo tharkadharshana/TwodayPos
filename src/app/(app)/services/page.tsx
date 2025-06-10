@@ -46,7 +46,10 @@ const convertServicesToCSV = (data: Service[], headers: string[], isTemplate: bo
 
   const rows = data.map(service => {
     return headers.map(header => {
-      const value = (service as any)[header];
+      let value: any = (service as any)[header];
+      if (header === 'createdAt' || header === 'lastUpdatedAt') {
+        value = value?.toDate ? value.toDate().toISOString() : value;
+      }
       return escapeCSVField(value);
     }).join(',');
   });
@@ -80,7 +83,8 @@ export default function ServicesPage() {
 
   const serviceCsvHeaders = [
     "id", "name", "description", "price", "durationMinutes", 
-    "category", "isVisibleOnPOS", "isBookable", "imageUrl"
+    "category", "isVisibleOnPOS", "isBookable", "imageUrl",
+    "createdAt", "lastUpdatedAt"
   ];
   const serviceTemplateHeaders = [
     "name", "description", "price", "durationMinutes", 
@@ -249,7 +253,10 @@ export default function ServicesPage() {
                     <TableCell className="text-right text-foreground">${service.price.toFixed(2)}</TableCell>
                     <TableCell className="hidden sm:table-cell text-center text-muted-foreground">{service.durationMinutes || "N/A"}</TableCell>
                     <TableCell className="hidden sm:table-cell text-center">
-                      <Badge variant={service.isVisibleOnPOS ? "default" : "secondary"} className={service.isVisibleOnPOS ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-muted hover:bg-muted/80"}>
+                      <Badge variant={service.isVisibleOnPOS ? "default" : "secondary"} className={cn(
+                        service.isVisibleOnPOS ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-muted hover:bg-muted/80 text-muted-foreground",
+                        "flex items-center justify-center w-24"
+                        )}>
                         {service.isVisibleOnPOS ? <Eye className="h-3.5 w-3.5 mr-1" /> : <EyeOff className="h-3.5 w-3.5 mr-1" />}
                         {service.isVisibleOnPOS ? "Visible" : "Hidden"}
                       </Badge>
@@ -304,3 +311,5 @@ export default function ServicesPage() {
   );
 }
 
+
+    
