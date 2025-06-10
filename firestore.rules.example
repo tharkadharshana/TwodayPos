@@ -1,0 +1,236 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+
+    function isUserRole(userId, role) {
+      return isAuthenticated() && getUserData(userId).role == role;
+    }
+
+    function isUserActive(userId) {
+      return isAuthenticated() && getUserData(userId).isActive == true;
+    }
+
+    function userBelongsToStore(userId, storeId) {
+      return isAuthenticated() && getUserData(userId).storeId == storeId;
+    }
+
+    function isUserAdminOfStore(userId, storeId) {
+      return isUserRole(userId, 'admin') && userBelongsToStore(userId, storeId) && isUserActive(userId);
+    }
+
+    function isUserManagerOfStore(userId, storeId) {
+      return isUserRole(userId, 'manager') && userBelongsToStore(userId, storeId) && isUserActive(userId);
+    }
+
+    function isUserCashierOfStore(userId, storeId) {
+      return isUserRole(userId, 'cashier') && userBelongsToStore(userId, storeId) && isUserActive(userId);
+    }
+
+    // --- Collection Rules ---
+
+    // Stores Collection (/stores/{storeId})
+    match /stores/{storeId} {
+      // Any active user belonging to the store can read its details
+      allow read: if isAuthenticated() && userBelongsToStore(request.auth.uid, storeId) && isUserActive(request.auth.uid);
+
+      // Only an active admin who owns this store can update it.
+      // Ensure critical fields like ownerId are not changed.
+      allow update: if isUserAdminOfStore(request.auth.uid, storeId) &&
+                       resource.data.ownerId == request.auth.uid &&
+                       request.resource.data.ownerId == resource.data.ownerId && // ownerId cannot change
+                       request.resource.data.id == resource.data.id; // id cannot change
+
+      // Store creation is typically handled server-side or during initial user setup.
+      // For client-side creation during registration:
+      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
+
+      // Stores are generally not deleted by clients to prevent accidental data loss.
+      allow delete: if false;
+    }
+
+    // Users Collection (/users/{userId})
+    match /users/{targetUserId} {
+      // Users can read their own document if they are active.
+      allow read: if isAuthenticated() && request.auth.uid == targetUserId && isUserActive(request.auth.uid);
+
+      // Admins can read any active user document within their own store.
+      allow read: if isAuthenticated() &&
+                     isUserActive(request.auth.uid) &&
+                     isUserAdminOfStore(request.auth.uid, getUserData(targetUserId).storeId);
+
+      // User creation:
+      // 1. Public Registration: New user creates their own document.
+      //    They become an admin of their new store.
+      allow create: if isAuthenticated() && request.auth.uid == targetUserId &&
+                       request.resource.data.uid == request.auth.uid &&
+                       request.resource.data.role == 'admin' &&
+                       request.resource.data.storeId != null &&
+                       request.resource.data.isActive == true;
+      // 2. Admin Creating Other Users: An admin creates a document for a new manager/cashier in their store.
+      allow create: if isAuthenticated() &&
+                       isUserAdminOfStore(request.auth.uid, request.resource.data.storeId) &&
+                       (request.resource.data.role == 'manager' || request.resource.data.role == 'cashier') &&
+                       request.resource.data.uid == targetUserId && // Ensures doc ID matches uid field
+                       request.resource.data.isActive == true;
+
+
+      // User updates:
+      // 1. Users can update their own displayName, avatarUrl, lastLoginAt (non-critical fields).
+      allow update: if isAuthenticated() && request.auth.uid == targetUserId && isUserActive(request.auth.uid) &&
+                       request.resource.data.uid == resource.data.uid && // uid cannot change
+                       request.resource.data.email == resource.data.email && // email cannot change via this rule
+                       request.resource.data.storeId == resource.data.storeId && // storeId cannot change
+                       request.resource.data.role == resource.data.role && // role cannot change via this rule by self
+                       request.resource.data.createdAt == resource.data.createdAt && // createdAt cannot change
+                       request.resource.data.keys().hasAny(['displayName', 'avatarUrl', 'lastLoginAt', 'lastUpdatedAt']);
+
+      // 2. Admins can update role and isActive status of users in their store.
+      //    They cannot change their own role to non-admin or deactivate themselves via this rule.
+      //    They also cannot change storeId or critical fields of other users.
+      allow update: if isAuthenticated() &&
+                       isUserAdminOfStore(request.auth.uid, resource.data.storeId) &&
+                       targetUserId != request.auth.uid && // Admin cannot use this to modify self (separate rule for self-update)
+                       request.resource.data.uid == resource.data.uid &&
+                       request.resource.data.email == resource.data.email &&
+                       request.resource.data.storeId == resource.data.storeId &&
+                       request.resource.data.createdAt == resource.data.createdAt &&
+                       (request.resource.data.role == 'admin' || request.resource.data.role == 'manager' || request.resource.data.role == 'cashier') && // Valid roles
+                       request.resource.data.keys().hasAny(['role', 'isActive', 'displayName', 'lastUpdatedAt']); // Fields admin can change
+
+      // Deleting user documents is generally discouraged. Mark as inactive instead.
+      allow delete: if false;
+    }
+
+    // Products Collection (/products/{productId})
+    match /products/{productId} {
+      function productData() { return resource.data; }
+      function incomingProductData() { return request.resource.data; }
+      function productStoreId() { return productData().storeId; }
+      function incomingProductStoreId() { return incomingProductData().storeId; }
+
+      // Any active user belonging to the store can read products.
+      allow read: if isAuthenticated() && userBelongsToStore(request.auth.uid, productStoreId()) && isUserActive(request.auth.uid);
+
+      // Active Admins or Managers of the store can create products.
+      allow create: if isAuthenticated() && incomingProductStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, incomingProductStoreId()) || isUserManagerOfStore(request.auth.uid, incomingProductStoreId()));
+
+      // Active Admins or Managers of the store can update products.
+      // Ensure storeId is not changed.
+      allow update: if isAuthenticated() && productStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, productStoreId()) || isUserManagerOfStore(request.auth.uid, productStoreId())) &&
+                       incomingProductStoreId() == productStoreId(); // Prevent moving product to another store
+
+      // Active Admins or Managers of the store can delete products.
+      allow delete: if isAuthenticated() && productStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, productStoreId()) || isUserManagerOfStore(request.auth.uid, productStoreId()));
+    }
+
+    // Services Collection (/services/{serviceId})
+    match /services/{serviceId} {
+      function serviceData() { return resource.data; }
+      function incomingServiceData() { return request.resource.data; }
+      function serviceStoreId() { return serviceData().storeId; }
+      function incomingServiceStoreId() { return incomingServiceData().storeId; }
+
+      // Any active user belonging to the store can read services.
+      allow read: if isAuthenticated() && userBelongsToStore(request.auth.uid, serviceStoreId()) && isUserActive(request.auth.uid);
+
+      // Active Admins or Managers of the store can create services.
+      allow create: if isAuthenticated() && incomingServiceStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, incomingServiceStoreId()) || isUserManagerOfStore(request.auth.uid, incomingServiceStoreId()));
+
+      // Active Admins or Managers of the store can update services.
+      allow update: if isAuthenticated() && serviceStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, serviceStoreId()) || isUserManagerOfStore(request.auth.uid, serviceStoreId())) &&
+                       incomingServiceStoreId() == serviceStoreId();
+
+      // Active Admins or Managers of the store can delete services.
+      allow delete: if isAuthenticated() && serviceStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, serviceStoreId()) || isUserManagerOfStore(request.auth.uid, serviceStoreId()));
+    }
+
+    // Customers Collection (/customers/{customerId})
+    match /customers/{customerId} {
+      function customerData() { return resource.data; }
+      function incomingCustomerData() { return request.resource.data; }
+      function customerStoreId() { return customerData().storeId; }
+      function incomingCustomerStoreId() { return incomingCustomerData().storeId; }
+
+      // Active Admins or Managers of the store can read customer data.
+      // Cashiers might also need to read customer data to assign to transactions.
+      allow read: if isAuthenticated() && customerStoreId() != null &&
+                     (isUserAdminOfStore(request.auth.uid, customerStoreId()) ||
+                      isUserManagerOfStore(request.auth.uid, customerStoreId()) ||
+                      isUserCashierOfStore(request.auth.uid, customerStoreId())); // Cashiers can read for assignment
+
+      // Active Admins or Managers of the store can create customers.
+      // Cashiers can also create customers through the terminal.
+      allow create: if isAuthenticated() && incomingCustomerStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, incomingCustomerStoreId()) ||
+                        isUserManagerOfStore(request.auth.uid, incomingCustomerStoreId()) ||
+                        isUserCashierOfStore(request.auth.uid, incomingCustomerStoreId()));
+
+      // Active Admins or Managers of the store can update customers.
+      allow update: if isAuthenticated() && customerStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, customerStoreId()) || isUserManagerOfStore(request.auth.uid, customerStoreId())) &&
+                       incomingCustomerStoreId() == customerStoreId();
+
+      // Active Admins or Managers of the store can delete customers (consider implications, e.g., soft delete).
+      allow delete: if isAuthenticated() && customerStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, customerStoreId()) || isUserManagerOfStore(request.auth.uid, customerStoreId()));
+    }
+
+    // Transactions Collection (/transactions/{transactionId})
+    match /transactions/{transactionId} {
+      function transactionData() { return resource.data; }
+      function incomingTransactionData() { return request.resource.data; }
+      function transactionStoreId() { return transactionData().storeId; }
+      function incomingTransactionStoreId() { return incomingTransactionData().storeId; }
+
+      // Cashiers can create transactions for their store.
+      // Admins/Managers might also create transactions if needed (e.g., for corrections, though less common).
+      allow create: if isAuthenticated() && incomingTransactionStoreId() != null &&
+                       (isUserCashierOfStore(request.auth.uid, incomingTransactionStoreId()) ||
+                        isUserManagerOfStore(request.auth.uid, incomingTransactionStoreId()) ||
+                        isUserAdminOfStore(request.auth.uid, incomingTransactionStoreId())) &&
+                       // Ensure cashierId in transaction matches the creating user if they are a cashier
+                       (isUserCashierOfStore(request.auth.uid, incomingTransactionStoreId()) ?
+                          incomingTransactionData().cashierId == request.auth.uid : true);
+
+      // Admins and Managers can read all transactions for their store.
+      // Cashiers might only see transactions they created or for the current day (more complex rule).
+      // For simplicity here, allowing cashiers to read transactions from their store.
+      allow read: if isAuthenticated() && transactionStoreId() != null &&
+                     (isUserAdminOfStore(request.auth.uid, transactionStoreId()) ||
+                      isUserManagerOfStore(request.auth.uid, transactionStoreId()) ||
+                      isUserCashierOfStore(request.auth.uid, transactionStoreId()));
+
+      // Updating transactions is complex (e.g., for refunds, status changes).
+      // Generally, only specific fields by specific roles.
+      // Example: Admin/Manager can update paymentStatus or notes.
+      allow update: if isAuthenticated() && transactionStoreId() != null &&
+                       (isUserAdminOfStore(request.auth.uid, transactionStoreId()) || isUserManagerOfStore(request.auth.uid, transactionStoreId())) &&
+                       incomingTransactionStoreId() == transactionStoreId() &&
+                       // Prevent changing critical historical data
+                       incomingTransactionData().items.size() == transactionData().items.size() && // Basic check, more robust needed
+                       incomingTransactionData().totalAmount == transactionData().totalAmount; // Example: totalAmount shouldn't be casually changed
+
+      // Deleting transactions is highly discouraged. Usually voided or refunded.
+      allow delete: if false;
+    }
+  }
+}
+
+    
