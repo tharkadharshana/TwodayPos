@@ -10,10 +10,10 @@ import type { Product } from "@/types";
 import Image from "next/image";
 
 const mockProducts: Product[] = [
-  { id: "1", name: "Espresso Beans", sku: "EB001", price: 15.99, stockQuantity: 120, category: "Coffee", isVisibleOnPOS: true, lowStockThreshold: 20, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 10, supplierLeadTimeDays: 3 },
-  { id: "2", name: "Organic Milk", sku: "MK002", price: 3.49, stockQuantity: 8, category: "Dairy", isVisibleOnPOS: true, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 2, supplierLeadTimeDays: 1 },
-  { id: "3", name: "Croissants (Box of 6)", sku: "PS003", price: 8.99, stockQuantity: 0, category: "Pastries", isVisibleOnPOS: true, lowStockThreshold: 5, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 5, supplierLeadTimeDays: 2 },
-  { id: "4", name: "Artisan Bread", sku: "BR004", price: 5.20, stockQuantity: 35, category: "Bakery", isVisibleOnPOS: false, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 3, supplierLeadTimeDays: 1 },
+  { id: "1", name: "Espresso Beans", sku: "EB001", price: 15.99, stockQuantity: 120, category: "Coffee", isVisibleOnPOS: true, lowStockThreshold: 20, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 10, supplierLeadTimeDays: 3, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
+  { id: "2", name: "Organic Milk", sku: "MK002", price: 3.49, stockQuantity: 8, category: "Dairy", isVisibleOnPOS: true, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 2, supplierLeadTimeDays: 1, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
+  { id: "3", name: "Croissants (Box of 6)", sku: "PS003", price: 8.99, stockQuantity: 0, category: "Pastries", isVisibleOnPOS: true, lowStockThreshold: 5, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 5, supplierLeadTimeDays: 2, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
+  { id: "4", name: "Artisan Bread", sku: "BR004", price: 5.20, stockQuantity: 35, category: "Bakery", isVisibleOnPOS: false, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 3, supplierLeadTimeDays: 1, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
 ];
 
 function getStockBadgeClasses(quantity: number, lowStockThreshold?: number): string {
@@ -46,9 +46,11 @@ export default function InventoryPage() {
               <BotMessageSquare className="mr-2 h-4 w-4" /> AI Predictions
             </Button>
           </Link>
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-          </Button>
+          <Link href="/inventory/add">
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Product
+            </Button>
+          </Link>
         </div>
       </div>
 
