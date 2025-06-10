@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Replaced by Dialog
 import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare, XCircle, UserCheck, UserX, ConciergeBell, CheckCircle, Undo2 } from "lucide-react";
 import Image from "next/image";
 import { useUser } from "@/context/UserContext";
@@ -28,14 +27,16 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const mockCategories = ["All", "Drinks", "Pastries", "Food", "Merchandise", "Services"]; 
+
+const mockCategories = ["All", "Favorites", "Drinks", "Pastries", "Food", "Merchandise", "Services"]; 
 
 type CatalogDisplayItem = (Product | Service) & { itemType: 'product' | 'service' };
 
-const HARDCODED_PROMO_CODES: Record<string, {type: 'fixed' | 'percentage', value: number}> = {
-  "SAVE5": { type: 'fixed', value: 5 },
-  "TENOFF": { type: 'percentage', value: 0.10 }
+const HARDCODED_PROMO_CODES: Record<string, {type: 'fixed' | 'percentage', value: number, description?: string}> = {
+  "SAVE5": { type: 'fixed', value: 5, description: "$5 Off" },
+  "TENOFF": { type: 'percentage', value: 0.10, description: "10% Off" }
 };
 
 type LastCartAction = 
@@ -96,12 +97,12 @@ export default function SalesPage() {
           setServices(fetchedServices);
           
           const activeProducts: CatalogDisplayItem[] = fetchedProducts
-            .filter(p => p.isVisibleOnPOS) // Stock check will happen in addToCart
-            .map(p => ({ ...p, itemType: 'product' }));
+            .filter(p => p.isVisibleOnPOS) 
+            .map(p => ({ ...p, itemType: 'product' as const }));
           
           const activeServices: CatalogDisplayItem[] = fetchedServices
             .filter(s => s.isVisibleOnPOS)
-            .map(s => ({ ...s, itemType: 'service' }));
+            .map(s => ({ ...s, itemType: 'service' as const }));
 
           setCatalogItems([...activeProducts, ...activeServices].sort((a,b) => a.name.localeCompare(b.name)));
           
@@ -158,7 +159,7 @@ export default function SalesPage() {
 
   const removeFromCart = (productId: string, itemType: 'product' | 'service') => {
     setCartItems(prevItems => prevItems.filter(item => !(item.productId === productId && item.itemType === itemType)));
-    setLastCartAction(null); // Clearing an item isn't an "add" action
+    setLastCartAction(null); 
   };
 
   const updateQuantity = (productId: string, itemType: 'product' | 'service', change: number) => {
@@ -172,11 +173,10 @@ export default function SalesPage() {
               toast({ title: "Stock Limit", description: `Max stock for ${item.name} is ${item.stockQuantity}.`, variant: "default" });
               return { ...item, quantity: item.stockQuantity, totalPrice: item.stockQuantity * item.price };
             }
-             // For undo, this logic might need adjustment if we precisely track increments
             if (change > 0) {
                  setLastCartAction({ type: 'increment_existing_item', itemId: productId, itemType: itemType });
             } else {
-                 setLastCartAction(null); // Decrementing isn't an "add" action for undo
+                 setLastCartAction(null); 
             }
             return { ...item, quantity: newQuantity, totalPrice: newQuantity * item.price };
           }
@@ -208,7 +208,7 @@ export default function SalesPage() {
         (item.productId === productId && item.itemType === itemType) ? { ...item, quantity: newQuantity, totalPrice: newQuantity * item.price } : item
       )
     );
-    setLastCartAction(null); // Direct set isn't a simple "add" or "increment" for basic undo
+    setLastCartAction(null); 
   };
 
   const handleUndoLastCartAction = () => {
@@ -223,13 +223,10 @@ export default function SalesPage() {
       if (itemInCart && itemInCart.quantity > 1) {
         updateQuantity(itemId, itemType, -1);
       } else if (itemInCart && itemInCart.quantity === 1) {
-        // If incremented from 0 to 1 (which would have been 'add_new_item')
-        // or if incremented to 1 (not possible with current addToCart logic if it was already there)
-        // This case effectively means reducing quantity to 0, so remove.
         removeFromCart(itemId, itemType);
       }
     }
-    setLastCartAction(null); // Reset after undo
+    setLastCartAction(null); 
   };
   
   const resetTerminalState = (clearCustomer: boolean = true, clearLastAction: boolean = true) => {
@@ -272,11 +269,20 @@ export default function SalesPage() {
   const total = subtotalAfterDiscount + tax;
   const changeDue = selectedPaymentMethod === 'cash' ? Math.max(0, parseFloat(amountTendered || "0") - total) : 0;
 
+  let displayedCatalogItems = catalogItems;
+  if (selectedCategory === "Favorites") {
+    // Demo: first 4 items or all if fewer than 4. Real app: use a 'isFavorite' flag or dedicated list.
+    const favoriteCount = Math.min(4, catalogItems.length);
+    displayedCatalogItems = catalogItems.slice(0, favoriteCount);
+  } else if (selectedCategory !== "All") {
+    displayedCatalogItems = catalogItems.filter(item => item.category === selectedCategory);
+  }
 
-  const filteredCatalogItems = catalogItems
-    .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || ((item as Product).sku && (item as Product).sku.toLowerCase().includes(searchTerm.toLowerCase())))
-    .filter(item => selectedCategory === "All" || item.category === selectedCategory);
-    // Visibility/stock check is now handled in addToCart or visual cues
+  const filteredCatalogItems = displayedCatalogItems
+    .filter(item => 
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      ((item as Product).sku && (item as Product).sku.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
 
   const handleApplyPromoCode = () => {
@@ -290,7 +296,7 @@ export default function SalesPage() {
         const calculatedDisc = calculateDiscount(subtotal, code);
         setAppliedPromoCode(code);
         setAppliedDiscountAmount(calculatedDisc);
-        toast({ title: "Promo Applied!", description: `Code "${code}" applied.`});
+        toast({ title: "Promo Applied!", description: `Code "${code}" (${promoDetails.description || ''}) applied.`});
         setPromoCodeInput("");
     } else {
         toast({ title: "Invalid Code", description: `Promo code "${code}" is not valid.`, variant: "destructive"});
@@ -355,7 +361,7 @@ export default function SalesPage() {
         customerForTx?.name,
       );
       toast({ title: "Sale Finalized!", description: "Transaction saved." });
-      resetTerminalState(false, true); 
+      resetTerminalState(true, true); // Reset customer too for a fully new sale
       
         const [refreshedProducts, refreshedServices] = await Promise.all([
             getProductsByStoreId(userDoc.storeId),
@@ -365,10 +371,10 @@ export default function SalesPage() {
         setServices(refreshedServices);
         const activeProducts: CatalogDisplayItem[] = refreshedProducts
             .filter(p => p.isVisibleOnPOS)
-            .map(p => ({ ...p, itemType: 'product' }));
+            .map(p => ({ ...p, itemType: 'product' as const }));
         const activeServices: CatalogDisplayItem[] = refreshedServices
             .filter(s => s.isVisibleOnPOS)
-            .map(s => ({ ...s, itemType: 'service' }));
+            .map(s => ({ ...s, itemType: 'service' as const }));
         setCatalogItems([...activeProducts, ...activeServices].sort((a,b) => a.name.localeCompare(b.name)));
 
 
@@ -580,7 +586,9 @@ export default function SalesPage() {
                 <Label className="text-xs text-muted-foreground">Customer</Label>
                 {selectedCustomerId && selectedCustomerName ? (
                     <div className="flex items-center justify-between p-2 border rounded-md bg-background h-10">
-                        <span className="text-sm font-medium text-foreground flex items-center"><UserCheck className="mr-2 h-4 w-4 text-primary"/>{selectedCustomerName}</span>
+                        <Button variant="link" className="p-0 h-auto text-sm font-medium text-foreground flex items-center hover:no-underline" onClick={() => setIsCustomerModalOpen(true)}>
+                            <UserCheck className="mr-2 h-4 w-4 text-primary"/>{selectedCustomerName}
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={handleClearCustomer} className="h-7 w-7 text-muted-foreground hover:text-destructive">
                             <UserX className="h-4 w-4" />
                             <span className="sr-only">Clear customer</span>
@@ -644,7 +652,7 @@ export default function SalesPage() {
                 </div>
                 {appliedDiscountAmount > 0 && (
                     <div className="flex justify-between text-destructive">
-                        <span className="text-destructive">Discount ({appliedPromoCode})</span>
+                        <span className="text-destructive">Discount ({HARDCODED_PROMO_CODES[appliedPromoCode!]?.description || appliedPromoCode})</span>
                         <span className="font-medium text-destructive">-${actualDiscountApplied.toFixed(2)}</span>
                     </div>
                 )}
@@ -760,3 +768,4 @@ export default function SalesPage() {
   );
 }
 
+    
