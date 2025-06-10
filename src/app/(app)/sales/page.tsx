@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare, XCircle, UserCheck, UserX, ConciergeBell, CheckCircle, Undo2 } from "lucide-react";
+import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare, XCircle, UserCheck, UserX, ConciergeBell, CheckCircle, Undo2, Tag } from "lucide-react";
 import Image from "next/image";
 import { useUser } from "@/context/UserContext";
 import { getProductsByStoreId, getServicesByStoreId, getCustomersByStoreId, addTransaction, getStoreDetails } from "@/lib/firestoreUtils";
@@ -639,6 +639,14 @@ export default function SalesPage() {
                     <Label htmlFor="promo-code" className="text-xs text-muted-foreground">Promo Code</Label>
                     <Input id="promo-code" placeholder="Enter code" className="h-10" value={promoCodeInput} onChange={(e) => setPromoCodeInput(e.target.value)} disabled={isProcessingOrSending || currentStep !== 'order'}/>
                 </div>
+                <Button 
+                  variant="outline" 
+                  className="h-10 shrink-0 text-foreground hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => toast({ title: "Coming Soon!", description: "Manual discount functionality will be added here."})}
+                  disabled={isProcessingOrSending || currentStep !== 'order' || cartItems.length === 0}
+                >
+                  <Tag className="mr-2 h-4 w-4" /> Add Discount
+                </Button>
                 <Button onClick={handleApplyOrRemovePromoCode} className="h-10 shrink-0" disabled={promoButtonDisabled || isProcessingOrSending || currentStep !== 'order'}>
                   {promoButtonText}
                 </Button>
@@ -736,15 +744,16 @@ export default function SalesPage() {
         {currentStep === 'order' && (
             <>
                 <h2 className="text-xl font-semibold mb-6 text-center text-foreground">Select Payment Method</h2>
-                <div className="grid grid-cols-1 gap-4 flex-grow content-center">
+                <div className="grid grid-cols-1 gap-4 flex-grow content-start">
                     <Button onClick={() => handlePaymentMethodSelect('cash')} className="h-20 text-xl bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600" disabled={cartItems.length === 0 || isProcessingOrSending}>
                         <Wallet className="mr-3 h-8 w-8"/>Cash
                     </Button>
                     <Button onClick={() => handlePaymentMethodSelect('card')} className="h-20 text-xl bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600" disabled={cartItems.length === 0 || isProcessingOrSending}>
                         <CreditCard className="mr-3 h-8 w-8"/>Card
                     </Button>
+                    <Button variant="outline" className="h-16 text-muted-foreground" disabled>Split Payment (Soon)</Button>
+                    <Button variant="outline" className="h-16 text-muted-foreground" disabled>Other Methods (Soon)</Button>
                 </div>
-                <Button variant="outline" className="mt-auto h-12 text-muted-foreground" disabled>Split Payment (Soon)</Button>
             </>
         )}
 
