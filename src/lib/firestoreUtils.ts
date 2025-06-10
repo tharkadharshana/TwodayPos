@@ -205,6 +205,19 @@ export const addProduct = async (storeId: string, productData: Omit<Product, "id
   return newProductRef.id;
 };
 
+export const getProductById = async (productId: string): Promise<Product | null> => {
+  if (!productId) {
+    console.warn("getProductById called without a productId.");
+    return null;
+  }
+  const productRef = doc(db, "products", productId);
+  const productSnap = await getDoc(productRef);
+  if (productSnap.exists()) {
+    return { id: productSnap.id, ...productSnap.data() } as Product;
+  }
+  return null;
+};
+
 export const getProductsByStoreId = async (storeId: string | null): Promise<Product[]> => {
   if (!storeId) {
     console.warn("getProductsByStoreId called with a null or undefined storeId. Returning empty array.");
@@ -221,7 +234,8 @@ export const updateProduct = async (productId: string, data: Partial<Product>): 
     throw new Error("updateProduct called without a productId.");
   }
   const productRef = doc(db, "products", productId);
-  const { storeId, ...updateDataSafe } = data; // Prevent storeId from being accidentally updated
+  // Destructure to remove fields that should not be directly updated or are handled by serverTimestamp
+  const { id, storeId, createdAt, ...updateDataSafe } = data; 
   await updateDoc(productRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -494,3 +508,4 @@ export const getTransactionsByStoreId = async (storeId: string | null, count: nu
 //     lastUpdatedAt: serverTimestamp(),
 //   });
 // };
+

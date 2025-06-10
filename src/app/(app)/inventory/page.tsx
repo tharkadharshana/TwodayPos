@@ -306,8 +306,10 @@ export default function InventoryPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-popover text-popover-foreground">
-                          <DropdownMenuItem disabled> {/* TODO: Implement Edit Product Page */}
-                            <Edit2 className="mr-2 h-4 w-4" /> Edit Product
+                          <DropdownMenuItem asChild>
+                             <Link href={`/inventory/edit/${product.id}`}>
+                               <Edit2 className="mr-2 h-4 w-4" /> Edit Product
+                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem disabled> {/* TODO: Implement Adjust Stock */}
                             <History className="mr-2 h-4 w-4" /> Adjust Stock 
