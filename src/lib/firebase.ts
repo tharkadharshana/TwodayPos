@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp, type FirebaseOptions } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 // These variables are expected to be in your .env.local file
@@ -24,24 +24,27 @@ if (!getApps().length) {
 }
 
 const auth = getAuth(app);
-const db = getFirestore(app);
 
-// Enable Firestore offline persistence
-enableIndexedDbPersistence(db, { cacheSizeBytes: CACHE_SIZE_UNLIMITED })
-  .then(() => {
-    console.log("Firestore offline persistence enabled.");
-  })
-  .catch((err) => {
-    if (err.code == 'failed-precondition') {
-      // Multiple tabs open, persistence can only be enabled in one tab at a time.
-      console.warn("Firestore offline persistence failed: Multiple tabs open or other precondition error.");
-    } else if (err.code == 'unimplemented') {
-      // The current browser does not support all of the features required to enable persistence
-      console.warn("Firestore offline persistence failed: Browser does not support required features.");
-    } else {
-      console.error("Firestore offline persistence failed: ", err);
-    }
+// Initialize Firestore with persistent cache settings
+// This replaces the separate getFirestore() and enableIndexedDbPersistence() calls
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ cacheSizeBytes: CACHE_SIZE_UNLIMITED })
   });
+  console.log("Firestore offline persistence configured via initializeFirestore.");
+} catch (err: any) {
+  // This catch block is more of a fallback, specific errors related to persistence
+  // are often better caught where persistence is explicitly enabled if not using initializeFirestore,
+  // or by checking capabilities beforehand. However, initializeFirestore itself might throw if options are invalid.
+  console.error("Firestore initialization with persistence failed: ", err);
+  // Fallback to default firestore instance if custom initialization fails, though this might not have desired persistence.
+  // db = getFirestore(app); // Re-evaluate if this fallback is desired or if it should fail hard.
+  // For now, if initializeFirestore fails, db will be undefined, which will cause issues downstream.
+  // This indicates a more fundamental problem with the Firebase setup or environment.
+  // In a production app, you might want more robust error handling or reporting here.
+  throw new Error("Failed to initialize Firestore with persistence: " + err.message);
+}
 
 
 export { app, auth, db };
