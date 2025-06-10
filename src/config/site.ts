@@ -1,5 +1,6 @@
+
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark, TestTubeDiagonal } from 'lucide-react';
 
 export const siteConfig = {
   name: "PerfectPOS",
@@ -54,6 +55,11 @@ export const mainNavItems: NavItem[] = [
     href: "/transactions",
     icon: History,
   },
+  {
+    title: "Developer",
+    href: "/dev/populate-data",
+    icon: TestTubeDiagonal, // Icon for developer/debug tools
+  },
 ];
 
 export const settingsNavItems: NavItem[] = [
@@ -73,3 +79,4 @@ export const settingsNavItems: NavItem[] = [
     icon: SettingsIcon, // General settings could use the main settings icon
   },
 ];
+
