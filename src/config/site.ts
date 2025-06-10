@@ -1,6 +1,6 @@
 
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark, TestTubeDiagonal } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark, TestTubeDiagonal, ConciergeBell } from 'lucide-react';
 
 export const siteConfig = {
   name: "PerfectPOS",
@@ -36,7 +36,7 @@ export const mainNavItems: NavItem[] = [
       {
         title: "Manage Stock",
         href: "/inventory",
-        icon: Boxes, // Redundant but fine for sub-item
+        icon: Boxes, 
       },
       {
         title: "Predictive AI",
@@ -44,6 +44,11 @@ export const mainNavItems: NavItem[] = [
         icon: BotMessageSquare,
       }
     ]
+  },
+  {
+    title: "Services",
+    href: "/services",
+    icon: ConciergeBell,
   },
   {
     title: "Customers",
@@ -58,7 +63,7 @@ export const mainNavItems: NavItem[] = [
   {
     title: "Developer",
     href: "/dev/populate-data",
-    icon: TestTubeDiagonal, // Icon for developer/debug tools
+    icon: TestTubeDiagonal, 
   },
 ];
 
@@ -76,7 +81,6 @@ export const settingsNavItems: NavItem[] = [
   {
     title: "General",
     href: "/settings",
-    icon: SettingsIcon, // General settings could use the main settings icon
+    icon: SettingsIcon, 
   },
 ];
-

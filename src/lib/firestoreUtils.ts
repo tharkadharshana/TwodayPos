@@ -17,22 +17,20 @@ import {
   runTransaction
 } from "firebase/firestore";
 import { db } from "./firebase"; 
-import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem } from "@/types";
+import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem, Service } from "@/types";
 
 // --- User and Store Management ---
 
 export const createInitialStoreForUser = async (
   userId: string,
   email: string,
-  displayNameInput?: string // Now expecting this from registration form
+  displayNameInput?: string 
 ): Promise<{ storeId: string; userDocId: string }> => {
   const batch = writeBatch(db);
 
-  // 1. Create Store Document
   const storeRef = doc(collection(db, "stores"));
   const storeId = storeRef.id;
   
-  // Use provided displayName or fallback to email prefix
   const storeNameBase = displayNameInput || email.split("@")[0] || `User_${userId.substring(0,5)}`;
 
   const newStore: Store = {
@@ -51,7 +49,7 @@ export const createInitialStoreForUser = async (
     slogan: "",
     logoUrl: "",
     websiteUrl: "",
-    taxRate: 0.08, // Default 8%
+    taxRate: 0.08, 
     currency: "USD",
     subscriptionPlan: "free",
     showAddressOnReceipt: true,
@@ -75,22 +73,20 @@ export const createInitialStoreForUser = async (
   };
   batch.set(storeRef, newStore);
 
-  // 2. Create User Document
   const userRef = doc(db, "users", userId);
   const newUserDoc: UserDocument = {
     uid: userId,
     email: email,
-    displayName: displayNameInput || email.split("@")[0] || "New User", // Use input or fallback
-    role: "admin", // Default role for new users
+    displayName: displayNameInput || email.split("@")[0] || "New User",
+    role: "admin", 
     storeId: storeId, 
-    avatarUrl: "", // Initialize as empty string
+    avatarUrl: "", 
     createdAt: serverTimestamp() as Timestamp,
     lastLoginAt: serverTimestamp() as Timestamp,
     isActive: true,
   };
   batch.set(userRef, newUserDoc);
 
-  // Commit the batch
   await batch.commit();
 
   return { storeId: storeId, userDocId: userId };
@@ -109,11 +105,11 @@ export const getUserDocument = async (userId: string): Promise<UserDocument | nu
       uid: userSnap.id,
       email: data.email,
       displayName: data.displayName || "",
-      role: data.role || "cashier", // Default to cashier if role is missing
-      storeId: data.storeId || null, // Handle if storeId might be missing
+      role: data.role || "cashier", 
+      storeId: data.storeId || null, 
       createdAt: data.createdAt,
       lastLoginAt: data.lastLoginAt,
-      isActive: data.isActive === undefined ? true : data.isActive, // Default to true
+      isActive: data.isActive === undefined ? true : data.isActive, 
       avatarUrl: data.avatarUrl || "",
     } as UserDocument;
   }
@@ -225,7 +221,7 @@ export const updateProduct = async (productId: string, data: Partial<Product>): 
     throw new Error("updateProduct called without a productId.");
   }
   const productRef = doc(db, "products", productId);
-  const { storeId, ...updateDataSafe } = data; // Ensure storeId is not accidentally updated
+  const { storeId, ...updateDataSafe } = data; 
   await updateDoc(productRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -238,6 +234,63 @@ export const deleteProduct = async (productId: string): Promise<void> => {
   }
   const productRef = doc(db, "products", productId);
   await deleteDoc(productRef);
+};
+
+// --- Service Management ---
+
+export const addService = async (storeId: string, serviceData: Omit<Service, "id" | "storeId" | "createdAt" | "lastUpdatedAt">): Promise<string> => {
+  if (!storeId) {
+    throw new Error("addService called without a storeId.");
+  }
+  const servicesCollection = collection(db, "services");
+  const newServiceRef = doc(servicesCollection);
+  const fullServiceData: Service = {
+    id: newServiceRef.id,
+    storeId,
+    name: serviceData.name,
+    description: serviceData.description || "",
+    price: serviceData.price,
+    durationMinutes: serviceData.durationMinutes || undefined,
+    category: serviceData.category,
+    isVisibleOnPOS: serviceData.isVisibleOnPOS === undefined ? true : serviceData.isVisibleOnPOS,
+    isBookable: serviceData.isBookable === undefined ? false : serviceData.isBookable,
+    imageUrl: serviceData.imageUrl || "",
+    createdAt: serverTimestamp() as Timestamp,
+    lastUpdatedAt: serverTimestamp() as Timestamp,
+  };
+  await setDoc(newServiceRef, fullServiceData);
+  return newServiceRef.id;
+};
+
+export const getServicesByStoreId = async (storeId: string | null): Promise<Service[]> => {
+  if (!storeId) {
+    console.warn("getServicesByStoreId called with a null or undefined storeId. Returning empty array.");
+    return [];
+  }
+  const servicesCollection = collection(db, "services");
+  const q = query(servicesCollection, where("storeId", "==", storeId), orderBy("name"));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Service));
+};
+
+export const updateService = async (serviceId: string, data: Partial<Service>): Promise<void> => {
+  if (!serviceId) {
+    throw new Error("updateService called without a serviceId.");
+  }
+  const serviceRef = doc(db, "services", serviceId);
+  const { storeId, ...updateDataSafe } = data; // Ensure storeId is not accidentally updated
+  await updateDoc(serviceRef, {
+    ...updateDataSafe,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
+
+export const deleteService = async (serviceId: string): Promise<void> => {
+  if (!serviceId) {
+    throw new Error("deleteService called without a serviceId.");
+  }
+  const serviceRef = doc(db, "services", serviceId);
+  await deleteDoc(serviceRef);
 };
 
 
@@ -258,7 +311,6 @@ export const addCustomer = async (storeId: string, customerData: Omit<Customer, 
     address: customerData.address || { street: "", city: "", state: "", zip: "", country: "" },
     loyaltyPoints: 0,
     totalSpent: 0,
-    // lastPurchaseAt will be set upon first purchase
     notes: customerData.notes || "",
     birthday: customerData.birthday || "",
     createdAt: serverTimestamp() as Timestamp,
@@ -284,7 +336,7 @@ export const updateCustomer = async (customerId: string, data: Partial<Customer>
     throw new Error("updateCustomer called without a customerId.");
   }
   const customerRef = doc(db, "customers", customerId);
-  const { storeId, ...updateDataSafe } = data; // Ensure storeId is not accidentally updated
+  const { storeId, ...updateDataSafe } = data; 
   await updateDoc(customerRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -305,7 +357,7 @@ export const addTransaction = async (
   storeId: string | null,
   cashierId: string,
   cashierName: string | undefined,
-  cartItems: TransactionItem[],
+  cartItems: CartItem[], // Updated to CartItem which includes itemType
   subtotal: number,
   taxAmount: number,
   totalAmount: number,
@@ -327,48 +379,62 @@ export const addTransaction = async (
 
   try {
     await runTransaction(db, async (firestoreTransaction) => {
-      const transactionData: Omit<Transaction, "id" | "lastUpdatedAt"> & { lastUpdatedAt: Timestamp } = { // Ensure all fields present
+      const transactionItems: TransactionItem[] = cartItems.map(item => ({
+        itemId: item.productId, // Keep as productId for now, it's the ID of product/service
+        itemType: item.itemType || 'product', // Default to product if not specified
+        name: item.name,
+        sku: item.sku,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        totalPrice: item.totalPrice,
+      }));
+      
+      const transactionData: Transaction = {
+        id: newTransactionRef.id,
         storeId,
         transactionDisplayId: newTransactionRef.id.substring(0, 8).toUpperCase(),
         timestamp: serverTimestamp() as Timestamp,
         cashierId,
         cashierName: cashierName || "N/A",
-        items: cartItems,
+        items: transactionItems,
         subtotal,
-        discountAmount: 0, // Default
+        discountAmount: 0, 
         taxAmount,
         totalAmount,
         paymentMethod,
-        paymentStatus: "completed", // Default
+        paymentStatus: "completed", 
         customerId: customerId || "",
         customerName: customerName || "",
-        digitalReceiptSent: false, // Default
-        receiptChannel: null, // Default
-        receiptRecipient: null, // Default
-        offlineProcessed: false, // Default
-        syncedAt: undefined, // Default
-        notes: "", // Default
-        originalTransactionId: "", // Default
-        refundReason: "", // Default
+        digitalReceiptSent: false, 
+        receiptChannel: null, 
+        receiptRecipient: null, 
+        offlineProcessed: false, 
+        syncedAt: undefined, 
+        notes: "", 
+        originalTransactionId: "", 
+        refundReason: "", 
         lastUpdatedAt: serverTimestamp() as Timestamp,
       };
       firestoreTransaction.set(newTransactionRef, transactionData);
 
       for (const item of cartItems) {
-        const productRef = doc(db, "products", item.productId);
-        const productSnap = await firestoreTransaction.get(productRef);
+        // Only adjust stock for products
+        if (item.itemType === 'product' || !item.itemType) { // Default to product behavior if itemType is missing
+          const productRef = doc(db, "products", item.productId);
+          const productSnap = await firestoreTransaction.get(productRef);
 
-        if (!productSnap.exists()) {
-          throw new Error(`Product with ID ${item.productId} (${item.name}) not found during transaction.`);
+          if (!productSnap.exists()) {
+            throw new Error(`Product with ID ${item.productId} (${item.name}) not found during transaction.`);
+          }
+
+          const currentStock = productSnap.data().stockQuantity as number;
+          const newStock = currentStock - item.quantity;
+
+          if (newStock < 0) {
+            throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}, Requested: ${item.quantity}.`);
+          }
+          firestoreTransaction.update(productRef, { stockQuantity: newStock, lastUpdatedAt: serverTimestamp() });
         }
-
-        const currentStock = productSnap.data().stockQuantity as number;
-        const newStock = currentStock - item.quantity;
-
-        if (newStock < 0) {
-          throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}, Requested: ${item.quantity}.`);
-        }
-        firestoreTransaction.update(productRef, { stockQuantity: newStock, lastUpdatedAt: serverTimestamp() });
       }
 
       if (customerId) {
@@ -377,7 +443,7 @@ export const addTransaction = async (
         if (customerSnap.exists()) {
             const currentTotalSpent = customerSnap.data().totalSpent || 0;
             const currentLoyaltyPoints = customerSnap.data().loyaltyPoints || 0;
-            const pointsEarned = Math.floor(totalAmount); // Example: 1 point per dollar spent
+            const pointsEarned = Math.floor(totalAmount); 
             firestoreTransaction.update(customerRef, {
                  totalSpent: currentTotalSpent + totalAmount,
                  loyaltyPoints: currentLoyaltyPoints + pointsEarned,
@@ -390,7 +456,7 @@ export const addTransaction = async (
     return newTransactionRef.id;
   } catch (error) {
     console.error("Transaction failed: ", error);
-    throw error; // Re-throw to be caught by the caller
+    throw error; 
   }
 };
 

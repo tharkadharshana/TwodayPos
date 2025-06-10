@@ -24,6 +24,21 @@ export type Product = {
   supplierLeadTimeDays?: number;
 };
 
+export type Service = {
+  id: string; // Firestore document ID
+  storeId: string;
+  name: string;
+  description?: string;
+  price: number;
+  durationMinutes?: number; // e.g., 30, 60, 90
+  category: string;
+  isVisibleOnPOS: boolean; // Can it be added to a sale directly?
+  isBookable?: boolean; // For future appointment/booking system integration
+  imageUrl?: string; // Optional image for the service
+  createdAt: Timestamp;
+  lastUpdatedAt: Timestamp;
+};
+
 export type Customer = {
   id: string; // Firestore document ID
   storeId: string;
@@ -41,25 +56,29 @@ export type Customer = {
   totalSpent: number;
   createdAt: Timestamp;
   lastPurchaseAt?: Timestamp;
-  lastUpdatedAt: Timestamp; // Added for consistency
+  lastUpdatedAt: Timestamp; 
   notes?: string;
+  birthday?: string;
 };
 
 export type CartItem = {
-  productId: string;
+  productId: string; // Could be product or service ID in future
+  itemType?: 'product' | 'service'; // To distinguish
   name: string; 
-  sku: string; 
+  sku?: string; // Products have SKUs, services might not
   quantity: number;
   price: number; 
   totalPrice: number; 
   imageUrl?: string; 
-  stockQuantity: number; // Keep track of original stock for validation during add to cart
+  stockQuantity?: number; // Relevant for products
+  durationMinutes?: number; // Relevant for services
 };
 
 export type TransactionItem = {
-  productId: string;
+  itemId: string; // Product or Service ID
+  itemType: 'product' | 'service';
   name: string; 
-  sku: string; 
+  sku?: string; 
   quantity: number;
   unitPrice: number; 
   totalPrice: number; 
@@ -79,7 +98,7 @@ export type Transaction = {
   discountAmount: number;
   taxAmount: number;
   totalAmount: number;
-  paymentMethod: 'cash' | 'card' | 'mobile' | 'other' | string; // Allow for custom payment methods
+  paymentMethod: 'cash' | 'card' | 'mobile' | 'other' | string; 
   paymentStatus: 'completed' | 'pending' | 'refunded' | 'partially_refunded' | 'pending_sync';
   digitalReceiptSent?: boolean;
   receiptChannel?: 'whatsapp' | 'sms' | 'email' | null;
@@ -87,13 +106,13 @@ export type Transaction = {
   offlineProcessed?: boolean;
   syncedAt?: Timestamp;
   notes?: string;
-  originalTransactionId?: string; // For refunds
+  originalTransactionId?: string; 
   refundReason?: string;
-  lastUpdatedAt: Timestamp; // Added for consistency
+  lastUpdatedAt: Timestamp;
 };
 
 export type Store = {
-  id: string; // Firestore document ID (matches storeId)
+  id: string; 
   name: string;
   address?: {
     street?: string;
@@ -104,11 +123,11 @@ export type Store = {
   };
   contactEmail?: string;
   contactPhone?: string;
-  taxRate: number; // e.g., 0.08 for 8%
-  currency: string; // e.g., "USD"
-  ownerId: string; // User UID of the primary admin
+  taxRate: number; 
+  currency: string; 
+  ownerId: string; 
   createdAt: Timestamp;
-  lastUpdatedAt: Timestamp; // Added for tracking updates
+  lastUpdatedAt: Timestamp; 
   isActive: boolean;
   subscriptionPlan?: string;
   slogan?: string;
@@ -116,7 +135,6 @@ export type Store = {
   websiteUrl?: string;
   showAddressOnReceipt?: boolean;
   enableOnlineOrderingLink?: boolean;
-  // Receipt settings could be a map
   receiptSettings?: {
     headerMessage?: string;
     footerMessage?: string;
@@ -133,7 +151,7 @@ export type Store = {
 };
 
 export type UserDocument = {
-  uid: string; // Matches Firebase Auth UID and document ID in 'users' collection
+  uid: string; 
   email: string;
   displayName?: string;
   role: 'admin' | 'manager' | 'cashier';
@@ -141,7 +159,7 @@ export type UserDocument = {
   createdAt: Timestamp;
   lastLoginAt?: Timestamp;
   isActive: boolean;
-  avatarUrl?: string; // Optional
+  avatarUrl?: string; 
 };
 
 
