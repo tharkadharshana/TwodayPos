@@ -16,21 +16,21 @@ import {
   limit,
   runTransaction
 } from "firebase/firestore";
-import { db } from "./firebase"; 
-import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem, Service } from "@/types";
+import { db } from "./firebase";
+import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem, Service, CartItem } from "@/types";
 
 // --- User and Store Management ---
 
 export const createInitialStoreForUser = async (
   userId: string,
   email: string,
-  displayNameInput?: string 
+  displayNameInput?: string
 ): Promise<{ storeId: string; userDocId: string }> => {
   const batch = writeBatch(db);
 
   const storeRef = doc(collection(db, "stores"));
   const storeId = storeRef.id;
-  
+
   const storeNameBase = displayNameInput || email.split("@")[0] || `User_${userId.substring(0,5)}`;
 
   const newStore: Store = {
@@ -49,7 +49,7 @@ export const createInitialStoreForUser = async (
     slogan: "",
     logoUrl: "",
     websiteUrl: "",
-    taxRate: 0.08, 
+    taxRate: 0.08,
     currency: "USD",
     subscriptionPlan: "free",
     showAddressOnReceipt: true,
@@ -78,9 +78,9 @@ export const createInitialStoreForUser = async (
     uid: userId,
     email: email,
     displayName: displayNameInput || email.split("@")[0] || "New User",
-    role: "admin", 
-    storeId: storeId, 
-    avatarUrl: "", 
+    role: "admin",
+    storeId: storeId,
+    avatarUrl: "",
     createdAt: serverTimestamp() as Timestamp,
     lastLoginAt: serverTimestamp() as Timestamp,
     isActive: true,
@@ -103,13 +103,13 @@ export const getUserDocument = async (userId: string): Promise<UserDocument | nu
     const data = userSnap.data();
     return {
       uid: userSnap.id,
-      email: data.email,
+      email: data.email || "", // Ensure email exists
       displayName: data.displayName || "",
-      role: data.role || "cashier", 
-      storeId: data.storeId || null, 
-      createdAt: data.createdAt,
-      lastLoginAt: data.lastLoginAt,
-      isActive: data.isActive === undefined ? true : data.isActive, 
+      role: data.role || "cashier",
+      storeId: data.storeId || null,
+      createdAt: data.createdAt, // Should exist
+      lastLoginAt: data.lastLoginAt || serverTimestamp() as Timestamp, // Default if missing
+      isActive: data.isActive === undefined ? true : data.isActive,
       avatarUrl: data.avatarUrl || "",
     } as UserDocument;
   }
@@ -134,9 +134,9 @@ export const getStoreDetails = async (storeId: string | null): Promise<Store | n
         contactPhone: data.contactPhone || "",
         taxRate: data.taxRate ?? 0.0,
         currency: data.currency ?? "USD",
-        ownerId: data.ownerId,
-        createdAt: data.createdAt,
-        lastUpdatedAt: data.lastUpdatedAt,
+        ownerId: data.ownerId, // Should exist
+        createdAt: data.createdAt, // Should exist
+        lastUpdatedAt: data.lastUpdatedAt, // Should exist
         isActive: data.isActive ?? true,
         slogan: data.slogan || "",
         logoUrl: data.logoUrl || "",
@@ -221,7 +221,7 @@ export const updateProduct = async (productId: string, data: Partial<Product>): 
     throw new Error("updateProduct called without a productId.");
   }
   const productRef = doc(db, "products", productId);
-  const { storeId, ...updateDataSafe } = data; 
+  const { storeId, ...updateDataSafe } = data;
   await updateDoc(productRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -278,7 +278,7 @@ export const updateService = async (serviceId: string, data: Partial<Service>): 
     throw new Error("updateService called without a serviceId.");
   }
   const serviceRef = doc(db, "services", serviceId);
-  const { storeId, ...updateDataSafe } = data; // Ensure storeId is not accidentally updated
+  const { storeId, ...updateDataSafe } = data;
   await updateDoc(serviceRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -315,6 +315,7 @@ export const addCustomer = async (storeId: string, customerData: Omit<Customer, 
     birthday: customerData.birthday || "",
     createdAt: serverTimestamp() as Timestamp,
     lastUpdatedAt: serverTimestamp() as Timestamp,
+    lastPurchaseAt: undefined, // Explicitly undefined, or null if preferred for Timestamps not yet set
   };
   await setDoc(newCustomerRef, fullCustomerData);
   return newCustomerRef.id;
@@ -336,7 +337,7 @@ export const updateCustomer = async (customerId: string, data: Partial<Customer>
     throw new Error("updateCustomer called without a customerId.");
   }
   const customerRef = doc(db, "customers", customerId);
-  const { storeId, ...updateDataSafe } = data; 
+  const { storeId, ...updateDataSafe } = data;
   await updateDoc(customerRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -357,7 +358,7 @@ export const addTransaction = async (
   storeId: string | null,
   cashierId: string,
   cashierName: string | undefined,
-  cartItems: CartItem[], // Updated to CartItem which includes itemType
+  cartItems: CartItem[],
   subtotal: number,
   taxAmount: number,
   totalAmount: number,
@@ -380,15 +381,15 @@ export const addTransaction = async (
   try {
     await runTransaction(db, async (firestoreTransaction) => {
       const transactionItems: TransactionItem[] = cartItems.map(item => ({
-        itemId: item.productId, // Keep as productId for now, it's the ID of product/service
-        itemType: item.itemType || 'product', // Default to product if not specified
+        itemId: item.productId,
+        itemType: item.itemType || 'product',
         name: item.name,
-        sku: item.sku,
+        sku: item.sku || "", // Ensure SKU is not undefined
         quantity: item.quantity,
         unitPrice: item.price,
         totalPrice: item.totalPrice,
       }));
-      
+
       const transactionData: Transaction = {
         id: newTransactionRef.id,
         storeId,
@@ -398,28 +399,27 @@ export const addTransaction = async (
         cashierName: cashierName || "N/A",
         items: transactionItems,
         subtotal,
-        discountAmount: 0, 
+        discountAmount: 0,
         taxAmount,
         totalAmount,
         paymentMethod,
-        paymentStatus: "completed", 
+        paymentStatus: "completed",
         customerId: customerId || "",
         customerName: customerName || "",
-        digitalReceiptSent: false, 
-        receiptChannel: null, 
-        receiptRecipient: null, 
-        offlineProcessed: false, 
-        syncedAt: undefined, 
-        notes: "", 
-        originalTransactionId: "", 
-        refundReason: "", 
+        digitalReceiptSent: false,
+        receiptChannel: null,
+        receiptRecipient: null,
+        offlineProcessed: false,
+        syncedAt: null, // Changed from undefined to null
+        notes: "",
+        originalTransactionId: "",
+        refundReason: "",
         lastUpdatedAt: serverTimestamp() as Timestamp,
       };
       firestoreTransaction.set(newTransactionRef, transactionData);
 
       for (const item of cartItems) {
-        // Only adjust stock for products
-        if (item.itemType === 'product' || !item.itemType) { // Default to product behavior if itemType is missing
+        if (item.itemType === 'product' || !item.itemType) {
           const productRef = doc(db, "products", item.productId);
           const productSnap = await firestoreTransaction.get(productRef);
 
@@ -443,7 +443,7 @@ export const addTransaction = async (
         if (customerSnap.exists()) {
             const currentTotalSpent = customerSnap.data().totalSpent || 0;
             const currentLoyaltyPoints = customerSnap.data().loyaltyPoints || 0;
-            const pointsEarned = Math.floor(totalAmount); 
+            const pointsEarned = Math.floor(totalAmount);
             firestoreTransaction.update(customerRef, {
                  totalSpent: currentTotalSpent + totalAmount,
                  loyaltyPoints: currentLoyaltyPoints + pointsEarned,
@@ -456,7 +456,7 @@ export const addTransaction = async (
     return newTransactionRef.id;
   } catch (error) {
     console.error("Transaction failed: ", error);
-    throw error; 
+    throw error;
   }
 };
 
