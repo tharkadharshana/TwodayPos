@@ -567,7 +567,7 @@ export default function SalesPage() {
                             <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" disabled={isProcessingOrSending}><Trash2 className="h-5 w-5"/></Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
-                            <AlertDialogHeader> <AlertDialogTitle>Clear Cart?</AlertDialogTitle> <AlertDialogDescription> Are you sure you want to remove all items from the current order? This will not clear the assigned customer or promo code. </AlertDialogDescription> </AlertDialogHeader>
+                            <AlertDialogHeader> <AlertDialogTitle>Clear Cart?</AlertDialogTitle> <AlertDialogDescription> Are you sure you want to remove all items and any applied promo code from the current order? The assigned customer (if any) will remain. </AlertDialogDescription> </AlertDialogHeader>
                             <AlertDialogFooter> <AlertDialogCancel>Cancel</AlertDialogCancel> <AlertDialogAction onClick={() => resetTerminalState(false, true)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Clear Cart</AlertDialogAction> </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
