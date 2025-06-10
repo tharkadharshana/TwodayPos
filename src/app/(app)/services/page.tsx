@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, ConciergeBell, Edit2, Trash2, EyeOff, Eye, FileDown, UploadCloud, Loader2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Search, ConciergeBell, Edit2, Trash2, EyeOff, Eye, FileDown, UploadCloud, Loader2, DownloadCloud } from "lucide-react";
 import type { Service } from "@/types";
 import { useUser } from "@/context/UserContext";
 import { getServicesByStoreId, deleteService } from "@/lib/firestoreUtils";
@@ -303,3 +303,4 @@ export default function ServicesPage() {
     </div>
   );
 }
+
