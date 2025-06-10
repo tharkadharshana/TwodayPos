@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare, XCircle, UserCheck, UserX, ConciergeBell } from "lucide-react";
+// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Replaced by Dialog
+import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare, XCircle, UserCheck, UserX, ConciergeBell, CheckCircle, Undo2 } from "lucide-react";
 import Image from "next/image";
 import { useUser } from "@/context/UserContext";
 import { getProductsByStoreId, getServicesByStoreId, getCustomersByStoreId, addTransaction, getStoreDetails } from "@/lib/firestoreUtils";
@@ -27,16 +27,21 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
-const mockCategories = ["All", "Drinks", "Pastries", "Food", "Merchandise", "Services"]; // Added Services
+const mockCategories = ["All", "Drinks", "Pastries", "Food", "Merchandise", "Services"]; 
 
 type CatalogDisplayItem = (Product | Service) & { itemType: 'product' | 'service' };
-
 
 const HARDCODED_PROMO_CODES: Record<string, {type: 'fixed' | 'percentage', value: number}> = {
   "SAVE5": { type: 'fixed', value: 5 },
   "TENOFF": { type: 'percentage', value: 0.10 }
 };
+
+type LastCartAction = 
+  | { type: 'add_new_item'; itemId: string; itemType: 'product' | 'service' }
+  | { type: 'increment_existing_item'; itemId: string; itemType: 'product' | 'service' }
+  | null;
 
 
 export default function SalesPage() {
@@ -67,6 +72,8 @@ export default function SalesPage() {
   const [appliedPromoCode, setAppliedPromoCode] = React.useState<string | null>(null);
   const [appliedDiscountAmount, setAppliedDiscountAmount] = React.useState<number>(0);
   const [receiptRecipient, setReceiptRecipient] = React.useState<string>("");
+  const [lastCartAction, setLastCartAction] = React.useState<LastCartAction>(null);
+
 
   // Customer Modal State
   const [isCustomerModalOpen, setIsCustomerModalOpen] = React.useState(false);
@@ -89,7 +96,7 @@ export default function SalesPage() {
           setServices(fetchedServices);
           
           const activeProducts: CatalogDisplayItem[] = fetchedProducts
-            .filter(p => p.isVisibleOnPOS && p.stockQuantity > 0)
+            .filter(p => p.isVisibleOnPOS) // Stock check will happen in addToCart
             .map(p => ({ ...p, itemType: 'product' }));
           
           const activeServices: CatalogDisplayItem[] = fetchedServices
@@ -114,6 +121,11 @@ export default function SalesPage() {
   const taxRate = storeDetails?.taxRate || 0.0;
 
   const addToCart = (item: CatalogDisplayItem) => {
+    if (item.itemType === 'product' && item.stockQuantity <= 0) {
+      toast({ title: "Out of Stock", description: `${item.name} is currently out of stock.`, variant: "default" });
+      return;
+    }
+
     setCartItems(prevItems => {
       const existingItem = prevItems.find(cartItem => cartItem.productId === item.id && cartItem.itemType === item.itemType);
       if (existingItem) {
@@ -121,21 +133,23 @@ export default function SalesPage() {
             toast({ title: "Stock Limit", description: `Cannot add more ${item.name}. Max stock reached.`, variant: "default" });
             return prevItems;
         }
+        setLastCartAction({ type: 'increment_existing_item', itemId: item.id, itemType: item.itemType });
         return prevItems.map(cartItem =>
         cartItem.productId === item.id && cartItem.itemType === item.itemType 
             ? { ...cartItem, quantity: cartItem.quantity + 1, totalPrice: (cartItem.quantity + 1) * cartItem.price } 
             : cartItem
         );
       }
+      setLastCartAction({ type: 'add_new_item', itemId: item.id, itemType: item.itemType });
       return [...prevItems, { 
         productId: item.id, 
         name: item.name, 
-        sku: (item as Product).sku || undefined, // Services might not have SKU
+        sku: (item as Product).sku || undefined, 
         quantity: 1, 
         price: item.price, 
         totalPrice: item.price, 
         imageUrl: item.imageUrl, 
-        stockQuantity: (item as Product).stockQuantity, // Will be undefined for services, that's okay
+        stockQuantity: (item as Product).stockQuantity, 
         itemType: item.itemType,
         durationMinutes: (item as Service).durationMinutes 
       }];
@@ -144,6 +158,7 @@ export default function SalesPage() {
 
   const removeFromCart = (productId: string, itemType: 'product' | 'service') => {
     setCartItems(prevItems => prevItems.filter(item => !(item.productId === productId && item.itemType === itemType)));
+    setLastCartAction(null); // Clearing an item isn't an "add" action
   };
 
   const updateQuantity = (productId: string, itemType: 'product' | 'service', change: number) => {
@@ -156,6 +171,12 @@ export default function SalesPage() {
             if (item.itemType === 'product' && item.stockQuantity !== undefined && newQuantity > item.stockQuantity) {
               toast({ title: "Stock Limit", description: `Max stock for ${item.name} is ${item.stockQuantity}.`, variant: "default" });
               return { ...item, quantity: item.stockQuantity, totalPrice: item.stockQuantity * item.price };
+            }
+             // For undo, this logic might need adjustment if we precisely track increments
+            if (change > 0) {
+                 setLastCartAction({ type: 'increment_existing_item', itemId: productId, itemType: itemType });
+            } else {
+                 setLastCartAction(null); // Decrementing isn't an "add" action for undo
             }
             return { ...item, quantity: newQuantity, totalPrice: newQuantity * item.price };
           }
@@ -187,9 +208,31 @@ export default function SalesPage() {
         (item.productId === productId && item.itemType === itemType) ? { ...item, quantity: newQuantity, totalPrice: newQuantity * item.price } : item
       )
     );
+    setLastCartAction(null); // Direct set isn't a simple "add" or "increment" for basic undo
+  };
+
+  const handleUndoLastCartAction = () => {
+    if (!lastCartAction) return;
+
+    const { type, itemId, itemType } = lastCartAction;
+
+    if (type === 'add_new_item') {
+      removeFromCart(itemId, itemType);
+    } else if (type === 'increment_existing_item') {
+      const itemInCart = cartItems.find(ci => ci.productId === itemId && ci.itemType === itemType);
+      if (itemInCart && itemInCart.quantity > 1) {
+        updateQuantity(itemId, itemType, -1);
+      } else if (itemInCart && itemInCart.quantity === 1) {
+        // If incremented from 0 to 1 (which would have been 'add_new_item')
+        // or if incremented to 1 (not possible with current addToCart logic if it was already there)
+        // This case effectively means reducing quantity to 0, so remove.
+        removeFromCart(itemId, itemType);
+      }
+    }
+    setLastCartAction(null); // Reset after undo
   };
   
-  const resetTerminalState = (clearCustomer: boolean = true) => {
+  const resetTerminalState = (clearCustomer: boolean = true, clearLastAction: boolean = true) => {
     setCartItems([]);
     if (clearCustomer) {
       setSelectedCustomerId(undefined);
@@ -202,6 +245,9 @@ export default function SalesPage() {
     setAppliedPromoCode(null);
     setAppliedDiscountAmount(0);
     setReceiptRecipient("");
+    if (clearLastAction) {
+        setLastCartAction(null);
+    }
   };
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -229,14 +275,8 @@ export default function SalesPage() {
 
   const filteredCatalogItems = catalogItems
     .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || ((item as Product).sku && (item as Product).sku.toLowerCase().includes(searchTerm.toLowerCase())))
-    .filter(item => selectedCategory === "All" || item.category === selectedCategory)
-    // For products, also check isVisibleOnPOS and stockQuantity > 0. For services, just isVisibleOnPOS.
-    .filter(item => {
-        if (item.itemType === 'product') {
-            return item.isVisibleOnPOS && (item as Product).stockQuantity > 0;
-        }
-        return item.isVisibleOnPOS;
-    });
+    .filter(item => selectedCategory === "All" || item.category === selectedCategory);
+    // Visibility/stock check is now handled in addToCart or visual cues
 
 
   const handleApplyPromoCode = () => {
@@ -300,23 +340,13 @@ export default function SalesPage() {
     }
     setIsProcessingPayment(true);
     try {
-      const transactionItems: TransactionItem[] = cartItems.map(item => ({
-        itemId: item.productId,
-        itemType: item.itemType || 'product',
-        name: item.name,
-        sku: item.sku || "",
-        quantity: item.quantity,
-        unitPrice: item.price,
-        totalPrice: item.totalPrice,
-      }));
-      
       const customerForTx = customers.find(c => c.id === selectedCustomerId);
 
       await addTransaction(
         userDoc.storeId,
         user.uid,
         userDoc.displayName,
-        cartItems, // Pass original CartItem[] to addTransaction as it handles mapping now
+        cartItems, 
         subtotal,
         tax,
         total,
@@ -325,9 +355,8 @@ export default function SalesPage() {
         customerForTx?.name,
       );
       toast({ title: "Sale Finalized!", description: "Transaction saved." });
-      resetTerminalState(false); 
+      resetTerminalState(false, true); 
       
-      // Refetch products and services to update stock and visibility
         const [refreshedProducts, refreshedServices] = await Promise.all([
             getProductsByStoreId(userDoc.storeId),
             getServicesByStoreId(userDoc.storeId),
@@ -335,7 +364,7 @@ export default function SalesPage() {
         setProducts(refreshedProducts);
         setServices(refreshedServices);
         const activeProducts: CatalogDisplayItem[] = refreshedProducts
-            .filter(p => p.isVisibleOnPOS && p.stockQuantity > 0)
+            .filter(p => p.isVisibleOnPOS)
             .map(p => ({ ...p, itemType: 'product' }));
         const activeServices: CatalogDisplayItem[] = refreshedServices
             .filter(s => s.isVisibleOnPOS)
@@ -377,6 +406,9 @@ export default function SalesPage() {
     );
   });
 
+  const isItemInCart = (itemId: string, itemType: 'product' | 'service') => {
+    return cartItems.some(cartItem => cartItem.productId === itemId && cartItem.itemType === itemType);
+  }
 
   return (
     <div className="flex h-[calc(100vh-theme(spacing.16)-theme(spacing.16))] max-h-[calc(100vh-theme(spacing.16)-theme(spacing.16))] overflow-hidden">
@@ -418,16 +450,23 @@ export default function SalesPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-4">
-              {filteredCatalogItems.map(item => (
+              {filteredCatalogItems.map(item => {
+                const itemIsInCart = isItemInCart(item.id, item.itemType);
+                const isOutOfStock = item.itemType === 'product' && item.stockQuantity <= 0;
+                return (
                 <Card 
                   key={`${item.id}-${item.itemType}`} 
-                  className="cursor-pointer hover:shadow-xl transition-shadow aspect-square flex flex-col items-center justify-center p-2 text-center shadow-md bg-card text-card-foreground"
-                  onClick={() => addToCart(item)}
+                  className={`cursor-pointer hover:shadow-xl transition-shadow aspect-square flex flex-col items-center justify-center p-2 text-center shadow-md bg-card text-card-foreground relative ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : ''} ${itemIsInCart ? 'border-2 border-primary' : ''}`}
+                  onClick={() => !isOutOfStock && addToCart(item)}
                   role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === 'Enter' && addToCart(item)}
+                  tabIndex={isOutOfStock ? -1 : 0}
+                  onKeyDown={(e) => !isOutOfStock && e.key === 'Enter' && addToCart(item)}
                   aria-label={`Add ${item.name} to cart`}
+                  aria-disabled={isOutOfStock}
                 >
+                  {itemIsInCart && <Badge variant="default" className="absolute top-1 right-1 text-xs px-1.5 py-0.5 z-10 bg-primary/80 text-primary-foreground">In Cart</Badge>}
+                  {isOutOfStock && <Badge variant="destructive" className="absolute top-1 left-1 text-xs px-1.5 py-0.5 z-10">Out of Stock</Badge>}
+                  
                   {item.imageUrl ? (
                     <Image 
                       src={item.imageUrl} 
@@ -435,7 +474,7 @@ export default function SalesPage() {
                       width={60} 
                       height={60} 
                       className="rounded-md mb-2 object-cover" 
-                      data-ai-hint="product item"
+                      data-ai-hint={item.itemType === 'service' ? "service icon" : "product item"}
                     />
                   ) : item.itemType === 'service' ? (
                      <ConciergeBell className="h-10 w-10 text-primary mb-2" />
@@ -447,7 +486,7 @@ export default function SalesPage() {
                   {item.itemType === 'product' && <p className="text-xs text-muted-foreground">Stock: {(item as Product).stockQuantity}</p>}
                    {item.itemType === 'service' && (item as Service).durationMinutes && <p className="text-xs text-muted-foreground">{(item as Service).durationMinutes} min</p>}
                 </Card>
-              ))}
+              )})}
             </div>
           )}
         </ScrollArea>
@@ -460,17 +499,33 @@ export default function SalesPage() {
             <div className="flex items-center">
               <ShoppingBasket className="mr-2 h-6 w-6 text-primary"/> Current Order
             </div>
-            {cartItems.length > 0 && (
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-5 w-5"/></Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader> <AlertDialogTitle>Clear Cart?</AlertDialogTitle> <AlertDialogDescription> Are you sure you want to remove all items from the current order? This will not clear the assigned customer. </AlertDialogDescription> </AlertDialogHeader>
-                        <AlertDialogFooter> <AlertDialogCancel>Cancel</AlertDialogCancel> <AlertDialogAction onClick={() => resetTerminalState(false)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Clear Cart</AlertDialogAction> </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            )}
+            <div className="flex items-center gap-1">
+                 {lastCartAction && (
+                    <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={handleUndoLastCartAction} className="text-muted-foreground hover:text-foreground">
+                                    <Undo2 className="h-5 w-5"/>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                                <p>Undo Last Action</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
+                {cartItems.length > 0 && (
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-5 w-5"/></Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader> <AlertDialogTitle>Clear Cart?</AlertDialogTitle> <AlertDialogDescription> Are you sure you want to remove all items from the current order? This will not clear the assigned customer or promo code. </AlertDialogDescription> </AlertDialogHeader>
+                            <AlertDialogFooter> <AlertDialogCancel>Cancel</AlertDialogCancel> <AlertDialogAction onClick={() => resetTerminalState(false, true)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Clear Cart</AlertDialogAction> </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
+            </div>
           </CardTitle>
         </CardHeader>
         <ScrollArea className="flex-1 -mx-4">
@@ -492,6 +547,7 @@ export default function SalesPage() {
                         type="number"
                         value={item.quantity}
                         onChange={(e) => setExactQuantity(item.productId, item.itemType!, parseInt(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
                         min="0"
                         className="h-7 w-12 text-sm text-center p-1"
                         aria-label={`Quantity for ${item.name}`}
@@ -699,7 +755,6 @@ export default function SalesPage() {
                 </Button>
             </>
         )}
-
       </div>
     </div>
   );
