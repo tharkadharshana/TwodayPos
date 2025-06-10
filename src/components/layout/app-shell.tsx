@@ -60,16 +60,16 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
           <SidebarMenuSub>
             {item.items.map((subItem, subIndex) => (
               <SidebarMenuSubItem key={subIndex}>
-                <Link href={subItem.href} legacyBehavior passHref>
+                <Link href={subItem.href}>
                   <SidebarMenuSubButton
                     asChild
                     isActive={currentPath.startsWith(subItem.href)}
                     onClick={handleLinkClick}
                   >
-                    <a> {/* Anchor tag is required by asChild with legacyBehavior */}
+                    <>
                       <subItem.icon className="mr-2 h-4 w-4" />
                       {subItem.title}
-                    </a>
+                    </>
                   </SidebarMenuSubButton>
                 </Link>
               </SidebarMenuSubItem>
@@ -81,17 +81,17 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
 
     return (
       <SidebarMenuItem key={index}>
-        <Link href={item.href} legacyBehavior passHref>
+        <Link href={item.href}>
           <SidebarMenuButton
             asChild
             isActive={currentPath.startsWith(item.href)}
             tooltip={item.title}
             onClick={handleLinkClick}
           >
-            <a> {/* Anchor tag is required by asChild with legacyBehavior */}
+            <>
               <item.icon className="h-5 w-5" />
               <span>{item.title}</span>
-            </a>
+            </>
           </SidebarMenuButton>
         </Link>
       </SidebarMenuItem>
@@ -111,7 +111,6 @@ function SyncStatusIndicator() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     
-    // Check initial status
     if (typeof navigator !== "undefined" && typeof navigator.onLine === "boolean") {
       setIsOnline(navigator.onLine);
     }
@@ -149,12 +148,6 @@ function SyncStatusIndicator() {
     Icon = Wifi; 
     iconColor = "text-blue-500 animate-pulse";
   }
-  // TODO: Add actual error state
-  // else if (syncError) {
-  //   statusText = "Sync Error";
-  //   Icon = AlertTriangle;
-  //   iconColor = "text-red-500";
-  // }
   
   return (
     <Tooltip>
@@ -170,7 +163,6 @@ function SyncStatusIndicator() {
   );
 }
 
-// Internal component to house the main shell structure and use sidebar context
 function AppShellInternal({ children }: AppShellProps) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();

@@ -39,7 +39,6 @@ export function UserNav() {
 
   const showOnlyIcon = sidebarState === "collapsed" && !isMobile;
 
-  // Placeholder user data - in a real app, this would come from auth state
   const user = firebaseAuth.currentUser;
   const userName = user?.displayName || "User";
   const userEmail = user?.email || "user@example.com";
@@ -74,24 +73,24 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <Link href="/settings/profile" passHref legacyBehavior>
-            <DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/settings/profile">
               <UserIcon className="mr-2 h-4 w-4" />
               <span>Profile</span>
-            </DropdownMenuItem>
-          </Link>
-          <Link href="/settings/billing" passHref legacyBehavior>
-            <DropdownMenuItem>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/settings/billing">
               <CreditCard className="mr-2 h-4 w-4" />
               <span>Billing</span>
-            </DropdownMenuItem>
-          </Link>
-          <Link href="/settings" passHref legacyBehavior>
-            <DropdownMenuItem>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/settings">
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
-            </DropdownMenuItem>
-          </Link>
+            </Link>
+          </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
