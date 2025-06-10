@@ -1,5 +1,5 @@
+
 import {
-  db,
   doc,
   setDoc,
   addDoc,
@@ -14,8 +14,10 @@ import {
   serverTimestamp,
   writeBatch,
   orderBy,
-  limit
-} from "./firebase"; // Assuming db is exported from firebase.ts
+  limit,
+  runTransaction
+} from "firebase/firestore";
+import { db } from "./firebase"; // Import the initialized db instance
 import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem } from "@/types";
 
 // --- User and Store Management ---
@@ -30,9 +32,10 @@ export const createInitialStoreForUser = async (
     id: storeRef.id,
     name: displayName ? `${displayName}'s Store` : "My New Store",
     ownerId: userId,
-    taxRate: 0.0, // Default tax rate
+    taxRate: 0.08, // Default tax rate (e.g., 8%)
     currency: "USD", // Default currency
     createdAt: serverTimestamp() as Timestamp,
+    lastUpdatedAt: serverTimestamp() as Timestamp,
     isActive: true,
   };
   await setDoc(storeRef, newStore);
@@ -45,6 +48,7 @@ export const createInitialStoreForUser = async (
     role: "admin",
     storeId: storeRef.id,
     createdAt: serverTimestamp() as Timestamp,
+    lastLoginAt: serverTimestamp() as Timestamp,
     isActive: true,
   };
   await setDoc(userRef, newUserDoc);
@@ -65,17 +69,35 @@ export const getStoreDetails = async (storeId: string): Promise<Store | null> =>
   const storeRef = doc(db, "stores", storeId);
   const storeSnap = await getDoc(storeRef);
   if (storeSnap.exists()) {
-    return { id: storeSnap.id, ...storeSnap.data() } as Store;
+    const data = storeSnap.data();
+    return {
+        id: storeSnap.id,
+        name: data.name,
+        address: data.address,
+        contactEmail: data.contactEmail,
+        contactPhone: data.contactPhone,
+        taxRate: data.taxRate ?? 0.0, // Default to 0 if not set
+        currency: data.currency ?? "USD", // Default to USD
+        ownerId: data.ownerId,
+        createdAt: data.createdAt,
+        lastUpdatedAt: data.lastUpdatedAt,
+        isActive: data.isActive,
+        slogan: data.slogan,
+        logoUrl: data.logoUrl,
+        websiteUrl: data.websiteUrl,
+        showAddressOnReceipt: data.showAddressOnReceipt ?? false,
+        enableOnlineOrderingLink: data.enableOnlineOrderingLink ?? false,
+        receiptSettings: data.receiptSettings,
+      } as Store;
   }
   return null;
 };
 
 export const updateStoreDetails = async (storeId: string, data: Partial<Store>): Promise<void> => {
   const storeRef = doc(db, "stores", storeId);
-  await updateDoc(storeRef, {
-    ...data,
-    lastUpdatedAt: serverTimestamp(), // Assuming Store type has lastUpdatedAt
-  });
+  // Ensure serverTimestamp is used for lastUpdatedAt
+  const updateData = { ...data, lastUpdatedAt: serverTimestamp() };
+  await updateDoc(storeRef, updateData);
 };
 
 
@@ -83,8 +105,10 @@ export const updateStoreDetails = async (storeId: string, data: Partial<Store>):
 
 export const addProduct = async (storeId: string, productData: Omit<Product, "id" | "storeId" | "createdAt" | "lastUpdatedAt">): Promise<string> => {
   const productsCollection = collection(db, "products");
-  const newProductRef = await addDoc(productsCollection, {
+  const newProductRef = doc(productsCollection); // Auto-generate ID locally
+  await setDoc(newProductRef, {
     ...productData,
+    id: newProductRef.id, // Store the ID within the document
     storeId,
     createdAt: serverTimestamp(),
     lastUpdatedAt: serverTimestamp(),
@@ -117,12 +141,15 @@ export const deleteProduct = async (productId: string): Promise<void> => {
 
 export const addCustomer = async (storeId: string, customerData: Omit<Customer, "id" | "storeId" | "createdAt" | "totalSpent" | "loyaltyPoints">): Promise<string> => {
   const customersCollection = collection(db, "customers");
-  const newCustomerRef = await addDoc(customersCollection, {
+  const newCustomerRef = doc(customersCollection); // Auto-generate ID locally
+  await setDoc(newCustomerRef, {
     ...customerData,
+    id: newCustomerRef.id, // Store the ID within the document
     storeId,
     totalSpent: 0,
     loyaltyPoints: 0,
-    createdAt: serverTimestamp(),
+    createdAt: serverTimestamp() as Timestamp,
+    // lastPurchaseAt can be updated separately
   });
   return newCustomerRef.id;
 };
@@ -138,7 +165,7 @@ export const updateCustomer = async (customerId: string, data: Partial<Customer>
   const customerRef = doc(db, "customers", customerId);
   await updateDoc(customerRef, {
     ...data,
-    // lastUpdatedAt: serverTimestamp(), // If Customer type has lastUpdatedAt
+    // lastUpdatedAt: serverTimestamp(), // If Customer type has lastUpdatedAt, add it
   });
 };
 
@@ -161,53 +188,73 @@ export const addTransaction = async (
   customerId?: string,
   customerName?: string
 ): Promise<string> => {
-  const batch = writeBatch(db);
   const transactionsCollection = collection(db, "transactions");
-  const newTransactionRef = doc(transactionsCollection); // Auto-generate ID
+  const newTransactionRef = doc(transactionsCollection); // Auto-generate ID for the new transaction
 
-  const transactionData: Omit<Transaction, "id"> = {
-    storeId,
-    timestamp: serverTimestamp() as Timestamp,
-    cashierId,
-    cashierName: cashierName || "N/A",
-    items: cartItems,
-    subtotal,
-    taxAmount,
-    totalAmount,
-    discountAmount: 0, // Assuming no discount for now
-    paymentMethod,
-    paymentStatus: "completed",
-    ...(customerId && { customerId }),
-    ...(customerName && { customerName }),
-  };
+  try {
+    await runTransaction(db, async (firestoreTransaction) => {
+      // 1. Create the transaction document
+      const transactionData: Omit<Transaction, "id"> = {
+        storeId,
+        transactionDisplayId: newTransactionRef.id.substring(0, 8).toUpperCase(), // Example display ID
+        timestamp: serverTimestamp() as Timestamp,
+        cashierId,
+        cashierName: cashierName || "N/A",
+        items: cartItems,
+        subtotal,
+        discountAmount: 0, 
+        taxAmount,
+        totalAmount,
+        paymentMethod,
+        paymentStatus: "completed",
+        ...(customerId && { customerId }),
+        ...(customerName && { customerName }),
+      };
+      firestoreTransaction.set(newTransactionRef, transactionData);
 
-  batch.set(newTransactionRef, transactionData);
+      // 2. Update stock quantities for each product in the cart
+      for (const item of cartItems) {
+        const productRef = doc(db, "products", item.productId);
+        const productSnap = await firestoreTransaction.get(productRef); // Use transaction.get
 
-  // Update stock quantities for each product in the cart
-  for (const item of cartItems) {
-    const productRef = doc(db, "products", item.productId);
-    const productSnap = await getDoc(productRef); // Fetch current stock
-    if (productSnap.exists()) {
-      const currentStock = productSnap.data().stockQuantity as number;
-      const newStock = currentStock - item.quantity;
-      if (newStock < 0) {
-        // This should ideally be checked before committing, or handled by security rules/Cloud Function
-        console.warn(`Product ${item.name} stock will go negative. Proceeding, but this needs robust handling.`);
+        if (!productSnap.exists()) {
+          throw new Error(`Product with ID ${item.productId} (${item.name}) not found.`);
+        }
+
+        const currentStock = productSnap.data().stockQuantity as number;
+        const newStock = currentStock - item.quantity;
+
+        if (newStock < 0) {
+          throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock}, Requested: ${item.quantity}.`);
+        }
+        firestoreTransaction.update(productRef, { stockQuantity: newStock, lastUpdatedAt: serverTimestamp() });
       }
-      batch.update(productRef, { stockQuantity: newStock, lastUpdatedAt: serverTimestamp() });
-    } else {
-      console.error(`Product with ID ${item.productId} not found during transaction.`);
-      // Handle this error appropriately - maybe fail the transaction
-      throw new Error(`Product with ID ${item.productId} not found.`);
-    }
-  }
 
-  await batch.commit();
-  return newTransactionRef.id;
+      // 3. (Optional) Update customer's totalSpent and lastPurchaseAt
+      if (customerId) {
+        const customerRef = doc(db, "customers", customerId);
+        // It's often better to do aggregations like totalSpent via Cloud Functions for robustness,
+        // but for simplicity, we can do a basic update here.
+        // For a more robust solution, consider incrementing.
+        const customerSnap = await firestoreTransaction.get(customerRef);
+        if (customerSnap.exists()) {
+            const currentTotalSpent = customerSnap.data().totalSpent || 0;
+            firestoreTransaction.update(customerRef, {
+                 totalSpent: currentTotalSpent + totalAmount,
+                 lastPurchaseAt: serverTimestamp()
+            });
+        }
+      }
+    });
+    return newTransactionRef.id;
+  } catch (error) {
+    console.error("Transaction failed: ", error);
+    throw error; // Re-throw the error to be caught by the caller
+  }
 };
 
 
-export const getTransactionsByStoreId = async (storeId: string, count: number = 20): Promise<Transaction[]> => {
+export const getTransactionsByStoreId = async (storeId: string, count: number = 50): Promise<Transaction[]> => {
   const transactionsCollection = collection(db, "transactions");
   const q = query(
     transactionsCollection, 
@@ -218,3 +265,5 @@ export const getTransactionsByStoreId = async (storeId: string, count: number = 
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
 };
+
+// Add other utility functions as needed (e.g., for refunds, daily reports, etc.)
