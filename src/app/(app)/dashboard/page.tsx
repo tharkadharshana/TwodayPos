@@ -1,6 +1,9 @@
+
+"use client"; // Add this directive
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart, DollarSign, Users, ShoppingCart, TrendingUp, AlertCircle, PackageCheck } from "lucide-react";
+import { BarChart as BarChartIcon, DollarSign, Users, ShoppingCart, TrendingUp, AlertCircle, PackageCheck } from "lucide-react"; // Renamed BarChart import from lucide
 import {
   ChartContainer,
   ChartTooltip,
@@ -8,7 +11,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart"
-import { Bar, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Pie, PieChart, Cell } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Pie, PieChart, Cell } from "recharts"; // BarChart here is from recharts
 import type { SalesKPIs, SalesTrendDataPoint, TopSellingProduct, PaymentMethodDistribution } from "@/types";
 
 const kpiData: SalesKPIs = {
@@ -185,3 +188,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
