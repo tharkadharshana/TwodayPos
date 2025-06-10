@@ -112,6 +112,7 @@ export default function TerminalPage() {
         setIsLoadingCatalog(true);
         try {
           // For large catalogs, consider fetching only a subset initially or encourage search.
+          // Current strategy: fetch all visible products/services. May need optimization for 50k+ items.
           const [fetchedProducts, fetchedServices, fetchedCustomers] = await Promise.all([
             getProductsByStoreId(userDoc.storeId),
             getServicesByStoreId(userDoc.storeId),
@@ -446,7 +447,7 @@ export default function TerminalPage() {
   return (
     <div className="flex h-[calc(100vh-theme(spacing.16)-theme(spacing.16))] max-h-[calc(100vh-theme(spacing.16)-theme(spacing.16))] overflow-hidden">
       {/* Left Panel: Catalog Selection */}
-      <div className="flex-grow-[2] p-4 flex flex-col border-r border-border basis-[40%] min-w-[300px] overflow-hidden">
+      <div className="flex-grow-[2] p-4 flex flex-col border-r border-border basis-[38%] min-w-[280px] overflow-hidden">
         <div className="mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -519,7 +520,7 @@ export default function TerminalPage() {
       </div>
 
       {/* Center Panel: Active Cart & Transaction Summary */}
-      <div className="flex-grow-[2] p-4 flex flex-col border-r border-border bg-muted/20 dark:bg-muted/10 basis-[35%] min-w-[300px] overflow-hidden">
+      <div className="flex-grow-[2] p-4 flex flex-col border-r border-border bg-muted/20 dark:bg-muted/10 basis-[32%] min-w-[260px] overflow-hidden">
         <CardHeader className="p-0 pb-4">
           <CardTitle className="text-2xl font-headline flex items-center justify-between text-foreground">
             <div className="flex items-center"> <ShoppingBasket className="mr-2 h-6 w-6 text-primary"/> Current Order </div>
@@ -621,7 +622,7 @@ export default function TerminalPage() {
       </div>
 
       {/* Right Panel: Payment & Actions */}
-      <div className="flex-grow-[1] p-6 flex flex-col bg-card shadow-lg overflow-y-auto basis-[25%] min-w-[280px]">
+      <div className="flex-grow-[1] p-6 flex flex-col bg-card shadow-lg overflow-y-auto basis-[30%] min-w-[240px]">
         {currentStep === 'order' && ( <>
                 <h2 className="text-xl font-semibold mb-6 text-center text-foreground">Select Payment Method</h2>
                 <div className="grid grid-cols-1 gap-4 flex-grow content-start">
