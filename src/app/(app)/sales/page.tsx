@@ -63,14 +63,15 @@ type NewCustomerFormValues = z.infer<typeof newCustomerFormSchema>;
 
 
 export default function SalesPage() {
-  const { user, userDoc } = useUser();
+  const { user, userDoc, storeDetails: currentStoreDetails } = useUser(); // Renamed storeDetails to currentStoreDetails
   const { toast } = useToast();
 
   const [products, setProducts] = React.useState<Product[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
   const [catalogItems, setCatalogItems] = React.useState<CatalogDisplayItem[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>([]);
-  const [storeDetails, setStoreDetails] = React.useState<Store | null>(null);
+  // Use currentStoreDetails from context directly instead of a local storeDetails state
+  // const [storeDetails, setStoreDetails] = React.useState<Store | null>(null); // Removed
 
   const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<string | undefined>(undefined);
@@ -111,17 +112,20 @@ export default function SalesPage() {
     },
   });
 
+  const dataHandlingMode = currentStoreDetails?.dataHandlingMode || 'offlineFriendly';
+
 
   React.useEffect(() => {
     if (userDoc?.storeId) {
       const fetchInitialData = async () => {
         setIsLoadingCatalog(true);
         try {
-          const [fetchedProducts, fetchedServices, fetchedCustomers, fetchedStoreDetails] = await Promise.all([
+          // Removed local getStoreDetails call, use currentStoreDetails from context
+          const [fetchedProducts, fetchedServices, fetchedCustomers] = await Promise.all([
             getProductsByStoreId(userDoc.storeId),
             getServicesByStoreId(userDoc.storeId),
             getCustomersByStoreId(userDoc.storeId),
-            getStoreDetails(userDoc.storeId)
+            // getStoreDetails(userDoc.storeId) // Removed
           ]);
 
           setProducts(fetchedProducts);
@@ -138,7 +142,7 @@ export default function SalesPage() {
           setCatalogItems([...activeProducts, ...activeServices].sort((a,b) => a.name.localeCompare(b.name)));
           
           setCustomers(fetchedCustomers);
-          setStoreDetails(fetchedStoreDetails);
+          // setStoreDetails(fetchedStoreDetails); // Removed
 
         } catch (error) {
           console.error("Error fetching sales page data:", error);
@@ -150,7 +154,7 @@ export default function SalesPage() {
     }
   }, [userDoc?.storeId, toast]);
 
-  const taxRate = storeDetails?.taxRate || 0.0;
+  const taxRate = currentStoreDetails?.taxRate || 0.0;
 
   const addToCart = (item: CatalogDisplayItem) => {
     if (item.itemType === 'product' && item.stockQuantity <= 0) {
@@ -271,6 +275,7 @@ export default function SalesPage() {
     setAmountTendered("");
     setPromoCodeInput("");
     setAppliedPromoCode(null);
+    setAppliedDiscountAmount(0); // Reset discount amount too
     setReceiptRecipient("");
     setReceiptSent(false);
     if (clearLastAction) {
@@ -322,6 +327,7 @@ export default function SalesPage() {
   const handleApplyOrRemovePromoCode = () => {
     if (appliedPromoCode && promoCodeInput === "") { // Condition to remove
         setAppliedPromoCode(null);
+        setAppliedDiscountAmount(0);
         toast({ title: "Promo Removed", description: "Discount has been removed from the order."});
         return;
     }
@@ -334,6 +340,7 @@ export default function SalesPage() {
     const promoDetails = HARDCODED_PROMO_CODES[code];
     if (promoDetails) {
         setAppliedPromoCode(code); 
+        // Applied discount amount will be set by useEffect
         toast({ title: "Promo Applied!", description: `Code "${code}" (${promoDetails.description || ''}) applied.`});
         setPromoCodeInput("");
     } else {
@@ -397,15 +404,14 @@ export default function SalesPage() {
   }
 
   const handleFinalizeSale = async () => {
-    if (!userDoc || !user) {
-      toast({ title: "Error", description: "User not authenticated.", variant: "destructive" });
+    if (!userDoc || !user || !currentStoreDetails) { // Check currentStoreDetails
+      toast({ title: "Error", description: "User or store information not available.", variant: "destructive" });
       return;
     }
     setIsProcessingOrSending(true);
     try {
       const customerForTx = customers.find(c => c.id === selectedCustomerId);
-
-      await addTransaction(
+      const transactionPromise = addTransaction(
         userDoc.storeId,
         user.uid,
         userDoc.displayName,
@@ -419,23 +425,35 @@ export default function SalesPage() {
         appliedDiscountAmount, 
         appliedPromoCode
       );
-      toast({ title: "Sale Finalized!", description: "Transaction saved." });
+
+      if (dataHandlingMode === 'cloudOnlyStrict') {
+        await transactionPromise;
+        toast({ title: "Sale Synced & Finalized!", description: "Transaction saved to cloud." });
+      } else {
+        transactionPromise.then(() => {
+            toast({ title: "Sale Finalized!", description: "Transaction saved. Will sync if offline." });
+        }).catch((error) => {
+            console.error("Error finalizing sale (offline friendly queue):", error);
+            toast({ title: "Save Error", description: `Transaction save initiated, but an issue occurred: ${error.message}`, variant: "destructive" });
+        });
+      }
+      
       resetTerminalState(true, true); 
       
-        const [refreshedProducts, refreshedServices] = await Promise.all([
-            getProductsByStoreId(userDoc.storeId),
-            getServicesByStoreId(userDoc.storeId),
-        ]);
-        setProducts(refreshedProducts);
-        setServices(refreshedServices);
-        const activeProducts: CatalogDisplayItem[] = refreshedProducts
-            .filter(p => p.isVisibleOnPOS)
-            .map(p => ({ ...p, itemType: 'product' as const }));
-        const activeServices: CatalogDisplayItem[] = refreshedServices
-            .filter(s => s.isVisibleOnPOS)
-            .map(s => ({ ...s, itemType: 'service' as const }));
-        setCatalogItems([...activeProducts, ...activeServices].sort((a,b) => a.name.localeCompare(b.name)));
-
+      // Refresh product/service catalog after transaction
+      const [refreshedProducts, refreshedServices] = await Promise.all([
+          getProductsByStoreId(userDoc.storeId),
+          getServicesByStoreId(userDoc.storeId),
+      ]);
+      setProducts(refreshedProducts);
+      setServices(refreshedServices);
+      const activeProducts: CatalogDisplayItem[] = refreshedProducts
+          .filter(p => p.isVisibleOnPOS)
+          .map(p => ({ ...p, itemType: 'product' as const }));
+      const activeServices: CatalogDisplayItem[] = refreshedServices
+          .filter(s => s.isVisibleOnPOS)
+          .map(s => ({ ...s, itemType: 'service' as const }));
+      setCatalogItems([...activeProducts, ...activeServices].sort((a,b) => a.name.localeCompare(b.name)));
 
     } catch (error: any) {
       console.error("Finalize sale error:", error);
@@ -537,6 +555,7 @@ export default function SalesPage() {
               className="pl-10 h-12 text-lg" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={isProcessingOrSending}
             />
           </div>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
@@ -547,11 +566,12 @@ export default function SalesPage() {
                 size="lg" 
                 className="shrink-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground hover:bg-accent hover:text-accent-foreground px-6 py-3 text-base"
                 onClick={() => setSelectedCategory(category)}
+                disabled={isProcessingOrSending}
               >
                 {category}
               </Button>
             ))}
-            <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground"><Filter className="h-6 w-6"/></Button>
+            <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground" disabled={isProcessingOrSending}><Filter className="h-6 w-6"/></Button>
           </div>
         </div>
         <ScrollArea className="flex-1 -mx-4">
@@ -571,13 +591,13 @@ export default function SalesPage() {
                 return (
                 <Card 
                   key={`${item.id}-${item.itemType}`} 
-                  className={`cursor-pointer hover:shadow-xl transition-shadow aspect-square flex flex-col items-center justify-center p-2 text-center shadow-md bg-card text-card-foreground relative ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : ''} ${itemIsInCart ? 'border-2 border-primary' : ''}`}
-                  onClick={() => !isOutOfStock && addToCart(item)}
+                  className={`cursor-pointer hover:shadow-xl transition-shadow aspect-square flex flex-col items-center justify-center p-2 text-center shadow-md bg-card text-card-foreground relative ${isOutOfStock || isProcessingOrSending ? 'opacity-50 cursor-not-allowed' : ''} ${itemIsInCart ? 'border-2 border-primary' : ''}`}
+                  onClick={() => !isOutOfStock && !isProcessingOrSending && addToCart(item)}
                   role="button"
-                  tabIndex={isOutOfStock ? -1 : 0}
-                  onKeyDown={(e) => !isOutOfStock && e.key === 'Enter' && addToCart(item)}
+                  tabIndex={isOutOfStock || isProcessingOrSending ? -1 : 0}
+                  onKeyDown={(e) => !isOutOfStock && !isProcessingOrSending && e.key === 'Enter' && addToCart(item)}
                   aria-label={`Add ${item.name} to cart`}
-                  aria-disabled={isOutOfStock}
+                  aria-disabled={isOutOfStock || isProcessingOrSending}
                 >
                   {itemIsInCart && <Badge variant="default" className="absolute top-1 right-1 text-xs px-1.5 py-0.5 z-10 bg-primary/80 text-primary-foreground">In Cart</Badge>}
                   {isOutOfStock && <Badge variant="destructive" className="absolute top-1 left-1 text-xs px-1.5 py-0.5 z-10">Out of Stock</Badge>}
@@ -673,7 +693,7 @@ export default function SalesPage() {
                   </div>
                 </div>
                 <p className="font-semibold text-foreground w-20 text-right">${item.totalPrice.toFixed(2)}</p>
-                <AlertDialog>
+                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="ghost" size="icon" className="ml-1 text-muted-foreground hover:text-destructive" aria-label={`Remove ${item.name} from cart`} disabled={isProcessingOrSending}>
                         <Trash2 className="h-4 w-4"/>
@@ -909,7 +929,7 @@ export default function SalesPage() {
                     className="w-full h-16 text-xl mt-auto bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600" 
                     disabled={isProcessingOrSending || parseFloat(amountTendered || "0") < total || amountTendered === ""}
                 >
-                    {isProcessingOrSending ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Cash"}
+                    {isProcessingOrSending && currentStep === 'payment' && selectedPaymentMethod === 'cash' ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Cash"}
                 </Button>
             </>
         )}
@@ -928,7 +948,7 @@ export default function SalesPage() {
                     className="w-full h-16 text-xl mt-auto bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600" 
                     disabled={isProcessingOrSending}
                 >
-                    {isProcessingOrSending ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Card"}
+                    {isProcessingOrSending && currentStep === 'payment' && selectedPaymentMethod === 'card' ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Card"}
                 </Button>
             </>
         )}
@@ -950,10 +970,10 @@ export default function SalesPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         <Button variant="outline" className="h-12" onClick={() => handleSimulatedSendReceipt('SMS')} disabled={isProcessingOrSending || receiptSent || !isReceiptRecipientValidPhone || !receiptRecipient}> 
-                           {isProcessingOrSending && selectedPaymentMethod === 'cash' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <MessageSquare className="mr-2"/>} Send SMS
+                           {isProcessingOrSending && !receiptSent ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <MessageSquare className="mr-2"/>} Send SMS
                         </Button>
                         <Button variant="outline" className="h-12" onClick={() => handleSimulatedSendReceipt('Email')} disabled={isProcessingOrSending || receiptSent || !isReceiptRecipientValidEmail || !receiptRecipient}> 
-                            {isProcessingOrSending && selectedPaymentMethod === 'card' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2"/>} Send Email
+                            {isProcessingOrSending && !receiptSent ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Mail className="mr-2"/>} Send Email
                         </Button>
                     </div>
                 </div>
@@ -961,7 +981,7 @@ export default function SalesPage() {
                     No Receipt
                 </Button>
                 <Button onClick={handleFinalizeSale} className="w-full h-16 text-xl mt-auto" disabled={isProcessingOrSending || !receiptSent}>
-                    {isProcessingOrSending ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Finalize Sale"}
+                    {isProcessingOrSending && receiptSent ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Finalize Sale"}
                 </Button>
             </>
         )}

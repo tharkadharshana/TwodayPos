@@ -46,7 +46,7 @@ const productFormSchema = z.object({
 type ProductFormValues = z.infer<typeof productFormSchema>;
 
 export default function EditProductPage() {
-  const { userDoc } = useUser();
+  const { userDoc, storeDetails, loading: userContextLoading } = useUser(); // Added storeDetails
   const { toast } = useToast();
   const router = useRouter();
   const params = useParams();
@@ -71,6 +71,8 @@ export default function EditProductPage() {
       isVisibleOnPOS: true,
     },
   });
+
+  const dataHandlingMode = storeDetails?.dataHandlingMode || 'offlineFriendly';
 
   React.useEffect(() => {
     if (productId) {
@@ -123,17 +125,35 @@ export default function EditProductPage() {
         stockQuantity: Number(data.stockQuantity),
         lowStockThreshold: data.lowStockThreshold ? Number(data.lowStockThreshold) : undefined,
       };
-      await updateProduct(productId, productDataToUpdate);
-      toast({ title: "Success", description: "Product updated successfully." });
+      
+      const updatePromise = updateProduct(productId, productDataToUpdate);
+
+      if (dataHandlingMode === 'cloudOnlyStrict') {
+        await updatePromise;
+        toast({ title: "Success (Synced)", description: "Product updated and synced to cloud." });
+      } else {
+        updatePromise.then(() => {
+            toast({ title: "Success (Offline Friendly)", description: "Product updated. Will sync if offline." });
+        }).catch((error) => {
+            console.error("Error updating product (offline friendly queue):", error);
+            toast({ title: "Update Error", description: `Product update initiated, but an issue occurred: ${error.message}`, variant: "destructive" });
+        });
+      }
       router.push("/inventory"); 
     } catch (error: any) {
       console.error("Error updating product:", error);
       toast({ title: "Error", description: `Failed to update product: ${error.message}`, variant: "destructive" });
+    } finally {
+        // Only set isSaving to false after operation completes or fails.
+        // For offlineFriendly, this will be quick. For strict, it waits for await.
+         setIsSaving(false); 
     }
-    setIsSaving(false);
   };
+  
+  const formDisabled = isSaving || isLoadingProduct || userContextLoading || !userDoc?.storeId || !storeDetails;
 
-  if (isLoadingProduct) {
+
+  if (isLoadingProduct || userContextLoading) {
     return (
       <div className="flex justify-center items-center h-full">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -157,167 +177,172 @@ export default function EditProductPage() {
       
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-headline text-foreground flex items-center">
-                <PackageOpen className="mr-2 h-6 w-6 text-primary" />
-                Product Information
-              </CardTitle>
-              <CardDescription className="text-muted-foreground">Modify the details for this product.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
+           <fieldset disabled={formDisabled}>
+            <Card className="shadow-lg">
+                <CardHeader>
+                <CardTitle className="text-xl font-headline text-foreground flex items-center">
+                    <PackageOpen className="mr-2 h-6 w-6 text-primary" />
+                    Product Information
+                </CardTitle>
+                <CardDescription className="text-muted-foreground">
+                    Modify the details for this product. Current mode: <span className="font-semibold">{dataHandlingMode === 'cloudOnlyStrict' ? 'Cloud Sync (Strict)' : 'Offline Friendly'}</span>.
+                </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                    <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-foreground">Product Name</FormLabel>
+                        <FormControl><Input {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="sku"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-foreground">SKU (Stock Keeping Unit)</FormLabel>
+                        <FormControl><Input {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+                <div className="grid md:grid-cols-2 gap-6">
+                    <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-foreground">Price</FormLabel>
+                        <FormControl><Input type="number" step="0.01" {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="stockQuantity"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-foreground">Stock Quantity</FormLabel>
+                        <FormControl><Input type="number" step="1" {...field} className="text-foreground" /></FormControl>
+                        <FormDescription>For stock adjustments (receiving, counting), use the "Adjust Stock" feature on the inventory list.</FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
                 <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-foreground">Product Name</FormLabel>
-                      <FormControl><Input {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
+                        <FormLabel className="text-foreground">Category</FormLabel>
+                        <FormControl><Input {...field} placeholder="e.g., Coffee, Pastries, Merchandise" className="text-foreground" /></FormControl>
+                        <FormMessage />
                     </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sku"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">SKU (Stock Keeping Unit)</FormLabel>
-                      <FormControl><Input {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-               <div className="grid md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Price</FormLabel>
-                      <FormControl><Input type="number" step="0.01" {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="stockQuantity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Stock Quantity</FormLabel>
-                      <FormControl><Input type="number" step="1" {...field} className="text-foreground" /></FormControl>
-                      <FormDescription>For stock adjustments (receiving, counting), use the "Adjust Stock" feature on the inventory list.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-               <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-foreground">Category</FormLabel>
-                    <FormControl><Input {...field} placeholder="e.g., Coffee, Pastries, Merchandise" className="text-foreground" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-foreground">Description (Optional)</FormLabel>
-                    <FormControl><Textarea {...field} className="text-foreground" rows={3} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid md:grid-cols-2 gap-6">
-                 <FormField
-                  control={form.control}
-                  name="lowStockThreshold"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Low Stock Threshold (Optional)</FormLabel>
-                      <FormControl><Input type="number" step="1" {...field} value={field.value ?? ""} className="text-foreground" /></FormControl>
-                      <FormDescription>Notify when stock drops to this level.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                    )}
                 />
                 <FormField
-                  control={form.control}
-                  name="imageUrl"
-                  render={({ field }) => (
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-foreground">Image URL (Optional)</FormLabel>
-                      <FormControl><Input type="url" {...field} placeholder="https://example.com/image.png" className="text-foreground" /></FormControl>
-                      <FormMessage />
+                        <FormLabel className="text-foreground">Description (Optional)</FormLabel>
+                        <FormControl><Textarea {...field} className="text-foreground" rows={3} /></FormControl>
+                        <FormMessage />
                     </FormItem>
-                  )}
+                    )}
                 />
-              </div>
-               <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                    <FormField
+                    control={form.control}
+                    name="lowStockThreshold"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-foreground">Low Stock Threshold (Optional)</FormLabel>
+                        <FormControl><Input type="number" step="1" {...field} value={field.value ?? ""} className="text-foreground" /></FormControl>
+                        <FormDescription>Notify when stock drops to this level.</FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="imageUrl"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-foreground">Image URL (Optional)</FormLabel>
+                        <FormControl><Input type="url" {...field} placeholder="https://example.com/image.png" className="text-foreground" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+                <div className="grid md:grid-cols-2 gap-6">
+                    <FormField
+                    control={form.control}
+                    name="supplier"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-foreground">Supplier (Optional)</FormLabel>
+                        <FormControl><Input {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="barcode"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel className="text-foreground">Barcode/UPC (Optional)</FormLabel>
+                        <FormControl><Input {...field} className="text-foreground" /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
                 <FormField
-                  control={form.control}
-                  name="supplier"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Supplier (Optional)</FormLabel>
-                      <FormControl><Input {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
+                    control={form.control}
+                    name="isVisibleOnPOS"
+                    render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
+                        <FormControl>
+                        <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                        />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                        <FormLabel className="text-foreground">
+                            Visible on POS
+                        </FormLabel>
+                        <FormDescription>
+                            If checked, this product will appear in the sales interface.
+                        </FormDescription>
+                        </div>
                     </FormItem>
-                  )}
+                    )}
                 />
-                 <FormField
-                  control={form.control}
-                  name="barcode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">Barcode/UPC (Optional)</FormLabel>
-                      <FormControl><Input {...field} className="text-foreground" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <FormField
-                control={form.control}
-                name="isVisibleOnPOS"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel className="text-foreground">
-                        Visible on POS
-                      </FormLabel>
-                      <FormDescription>
-                        If checked, this product will appear in the sales interface.
-                      </FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-            <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSaving || isLoadingProduct || !userDoc?.storeId}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <Save className="mr-2 h-4 w-4" /> Save Changes
-              </Button>
-            </CardFooter>
-          </Card>
+                </CardContent>
+                <CardFooter className="border-t px-6 py-4">
+                <Button type="submit" disabled={formDisabled}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <Save className="mr-2 h-4 w-4" /> Save Changes
+                </Button>
+                </CardFooter>
+            </Card>
+          </fieldset>
         </form>
       </Form>
     </div>
   );
 }
+
