@@ -85,8 +85,8 @@ function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], 
           <SidebarMenuButton
             asChild
             isActive={currentPath.startsWith(item.href)}
-            tooltip={item.title}
             onClick={handleLinkClick}
+            tooltip={item.title}
           >
             <>
               <item.icon className="h-5 w-5" />
