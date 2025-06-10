@@ -93,6 +93,40 @@ export const createInitialStoreForUser = async (
   return { storeId: storeId, userDocId: userId };
 };
 
+interface AdminCreateUserParams {
+  uid: string;
+  storeId: string;
+  email: string;
+  displayName: string;
+  role: Exclude<UserRole, 'admin'>;
+}
+
+export const adminCreateUserInFirestore = async ({
+  uid,
+  storeId,
+  email,
+  displayName,
+  role,
+}: AdminCreateUserParams): Promise<void> => {
+  if (!uid || !storeId || !email || !displayName || !role) {
+    throw new Error("Missing required parameters to create user document in Firestore.");
+  }
+  const userRef = doc(db, "users", uid);
+  const newUserDocData: UserDocument = {
+    uid,
+    email,
+    displayName,
+    role,
+    storeId,
+    createdAt: serverTimestamp() as Timestamp,
+    lastLoginAt: serverTimestamp() as Timestamp, 
+    isActive: true, 
+    avatarUrl: "", 
+  };
+  await setDoc(userRef, newUserDocData);
+};
+
+
 export const getUserDocument = async (userId: string): Promise<UserDocument | null> => {
   if (!userId) {
     console.warn("getUserDocument called without a userId.");
@@ -255,10 +289,14 @@ export const getProductById = async (productId: string): Promise<Product | null>
 
 export const getProductsByStoreId = async (storeId: string | null): Promise<Product[]> => {
   if (!storeId) {
+    // For very large catalogs (e.g., 50k+ items), fetching all products is not recommended.
+    // Consider implementing pagination (limit, startAfter) or fetching by category.
+    // Or, encourage users to use search first.
     console.warn("getProductsByStoreId called with a null or undefined storeId. Returning empty array.");
     return [];
   }
   const productsCollection = collection(db, "products");
+  // For large datasets, add pagination or more specific initial queries here.
   const q = query(productsCollection, where("storeId", "==", storeId), orderBy("name"));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Product));
@@ -312,6 +350,7 @@ export const addService = async (storeId: string, serviceData: Omit<Service, "id
 
 export const getServicesByStoreId = async (storeId: string | null): Promise<Service[]> => {
   if (!storeId) {
+     // For large service lists, consider pagination or more specific initial queries.
     console.warn("getServicesByStoreId called with a null or undefined storeId. Returning empty array.");
     return [];
   }
@@ -385,7 +424,7 @@ export const updateCustomer = async (customerId: string, data: Partial<Customer>
     throw new Error("updateCustomer called without a customerId.");
   }
   const customerRef = doc(db, "customers", customerId);
-  const { storeId, ...updateDataSafe } = data;
+  const { storeId, ...updateDataSafe } = data; // Ensure storeId is not part of updateData if it's present
   await updateDoc(customerRef, {
     ...updateDataSafe,
     lastUpdatedAt: serverTimestamp(),
@@ -411,7 +450,7 @@ export const addTransaction = async (
   taxAmount: number,
   totalAmount: number,
   paymentMethod: string,
-  terminalId?: string,
+  terminalId?: string, 
   customerId?: string,
   customerName?: string,
   discountAmountVal?: number, 
@@ -444,7 +483,7 @@ export const addTransaction = async (
       id: newTransactionRef.id,
       storeId,
       transactionDisplayId: newTransactionRef.id.substring(0, 8).toUpperCase(),
-      terminalId: terminalId || undefined,
+      terminalId: terminalId || undefined, 
       timestamp: serverTimestamp() as Timestamp,
       cashierId,
       cashierName: cashierName || "N/A",
@@ -461,8 +500,8 @@ export const addTransaction = async (
       digitalReceiptSent: false,
       receiptChannel: null,
       receiptRecipient: null,
-      offlineProcessed: typeof navigator !== 'undefined' && !navigator.onLine, 
-      syncedAt: typeof navigator !== 'undefined' && navigator.onLine ? serverTimestamp() as Timestamp : null, 
+      offlineProcessed: (typeof navigator !== 'undefined' && !navigator.onLine),
+      syncedAt: (typeof navigator !== 'undefined' && navigator.onLine) ? serverTimestamp() as Timestamp : null,
       notes: "",
       originalTransactionId: "",
       refundReason: "",
@@ -471,7 +510,7 @@ export const addTransaction = async (
     firestoreTransaction.set(newTransactionRef, transactionData);
 
     for (const item of cartItems) {
-      if (item.itemType === 'product' || !item.itemType) {
+      if (item.itemType === 'product' || !item.itemType) { 
         const productRef = doc(db, "products", item.productId);
         const productSnap = await firestoreTransaction.get(productRef);
         if (!productSnap.exists()) {
@@ -521,4 +560,6 @@ export const getTransactionsByStoreId = async (storeId: string | null, count: nu
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Transaction));
 };
+    
+
     
