@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare, XCircle, UserCheck, UserX } from "lucide-react";
+import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare, XCircle, UserCheck, UserX, ConciergeBell } from "lucide-react";
 import Image from "next/image";
 import { useUser } from "@/context/UserContext";
-import { getProductsByStoreId, getCustomersByStoreId, addTransaction, getStoreDetails } from "@/lib/firestoreUtils";
-import type { Product, CartItem, Customer, TransactionItem, Store } from "@/types";
+import { getProductsByStoreId, getServicesByStoreId, getCustomersByStoreId, addTransaction, getStoreDetails } from "@/lib/firestoreUtils";
+import type { Product, Service, CartItem, Customer, TransactionItem, Store } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -28,7 +28,11 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
-const mockCategories = ["All", "Drinks", "Pastries", "Food", "Merchandise"];
+const mockCategories = ["All", "Drinks", "Pastries", "Food", "Merchandise", "Services"]; // Added Services
+
+type CatalogDisplayItem = (Product | Service) & { itemType: 'product' | 'service' };
+
+
 const HARDCODED_PROMO_CODES: Record<string, {type: 'fixed' | 'percentage', value: number}> = {
   "SAVE5": { type: 'fixed', value: 5 },
   "TENOFF": { type: 'percentage', value: 0.10 }
@@ -40,6 +44,8 @@ export default function SalesPage() {
   const { toast } = useToast();
 
   const [products, setProducts] = React.useState<Product[]>([]);
+  const [services, setServices] = React.useState<Service[]>([]);
+  const [catalogItems, setCatalogItems] = React.useState<CatalogDisplayItem[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [storeDetails, setStoreDetails] = React.useState<Store | null>(null);
 
@@ -50,7 +56,7 @@ export default function SalesPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedCategory, setSelectedCategory] = React.useState("All");
 
-  const [isLoadingProducts, setIsLoadingProducts] = React.useState(true);
+  const [isLoadingCatalog, setIsLoadingCatalog] = React.useState(true);
   const [isProcessingPayment, setIsProcessingPayment] = React.useState(false);
 
   // Terminal State
@@ -70,21 +76,36 @@ export default function SalesPage() {
   React.useEffect(() => {
     if (userDoc?.storeId) {
       const fetchInitialData = async () => {
-        setIsLoadingProducts(true);
+        setIsLoadingCatalog(true);
         try {
-          const [fetchedProducts, fetchedCustomers, fetchedStoreDetails] = await Promise.all([
+          const [fetchedProducts, fetchedServices, fetchedCustomers, fetchedStoreDetails] = await Promise.all([
             getProductsByStoreId(userDoc.storeId),
+            getServicesByStoreId(userDoc.storeId),
             getCustomersByStoreId(userDoc.storeId),
             getStoreDetails(userDoc.storeId)
           ]);
-          setProducts(fetchedProducts.filter(p => p.isVisibleOnPOS && p.stockQuantity > 0)); 
+
+          setProducts(fetchedProducts);
+          setServices(fetchedServices);
+          
+          const activeProducts: CatalogDisplayItem[] = fetchedProducts
+            .filter(p => p.isVisibleOnPOS && p.stockQuantity > 0)
+            .map(p => ({ ...p, itemType: 'product' }));
+          
+          const activeServices: CatalogDisplayItem[] = fetchedServices
+            .filter(s => s.isVisibleOnPOS)
+            .map(s => ({ ...s, itemType: 'service' }));
+
+          setCatalogItems([...activeProducts, ...activeServices].sort((a,b) => a.name.localeCompare(b.name)));
+          
           setCustomers(fetchedCustomers);
           setStoreDetails(fetchedStoreDetails);
+
         } catch (error) {
           console.error("Error fetching sales page data:", error);
-          toast({ title: "Error", description: "Could not load products or customers.", variant: "destructive" });
+          toast({ title: "Error", description: "Could not load products, services or customers.", variant: "destructive" });
         }
-        setIsLoadingProducts(false);
+        setIsLoadingCatalog(false);
       };
       fetchInitialData();
     }
@@ -92,35 +113,47 @@ export default function SalesPage() {
 
   const taxRate = storeDetails?.taxRate || 0.0;
 
-  const addToCart = (product: Product) => {
+  const addToCart = (item: CatalogDisplayItem) => {
     setCartItems(prevItems => {
-      const existingItem = prevItems.find(item => item.productId === product.id);
+      const existingItem = prevItems.find(cartItem => cartItem.productId === item.id && cartItem.itemType === item.itemType);
       if (existingItem) {
-        if (existingItem.quantity < product.stockQuantity) {
-            return prevItems.map(item =>
-            item.productId === product.id ? { ...item, quantity: item.quantity + 1, totalPrice: (item.quantity + 1) * item.price } : item
-            );
-        } else {
-            toast({ title: "Stock Limit", description: `Cannot add more ${product.name}. Max stock reached.`, variant: "default" });
+        if (item.itemType === 'product' && existingItem.quantity >= (item as Product).stockQuantity) {
+            toast({ title: "Stock Limit", description: `Cannot add more ${item.name}. Max stock reached.`, variant: "default" });
             return prevItems;
         }
+        return prevItems.map(cartItem =>
+        cartItem.productId === item.id && cartItem.itemType === item.itemType 
+            ? { ...cartItem, quantity: cartItem.quantity + 1, totalPrice: (cartItem.quantity + 1) * cartItem.price } 
+            : cartItem
+        );
       }
-      return [...prevItems, { productId: product.id, name: product.name, sku: product.sku, quantity: 1, price: product.price, totalPrice: product.price, imageUrl: product.imageUrl, stockQuantity: product.stockQuantity }];
+      return [...prevItems, { 
+        productId: item.id, 
+        name: item.name, 
+        sku: (item as Product).sku || undefined, // Services might not have SKU
+        quantity: 1, 
+        price: item.price, 
+        totalPrice: item.price, 
+        imageUrl: item.imageUrl, 
+        stockQuantity: (item as Product).stockQuantity, // Will be undefined for services, that's okay
+        itemType: item.itemType,
+        durationMinutes: (item as Service).durationMinutes 
+      }];
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCartItems(prevItems => prevItems.filter(item => item.productId !== productId));
+  const removeFromCart = (productId: string, itemType: 'product' | 'service') => {
+    setCartItems(prevItems => prevItems.filter(item => !(item.productId === productId && item.itemType === itemType)));
   };
 
-  const updateQuantity = (productId: string, change: number) => {
+  const updateQuantity = (productId: string, itemType: 'product' | 'service', change: number) => {
     setCartItems(prevItems =>
       prevItems
         .map(item => {
-          if (item.productId === productId) {
+          if (item.productId === productId && item.itemType === itemType) {
             const newQuantity = item.quantity + change;
-            if (newQuantity <= 0) return null; // Mark for removal
-            if (newQuantity > item.stockQuantity) {
+            if (newQuantity <= 0) return null; 
+            if (item.itemType === 'product' && item.stockQuantity !== undefined && newQuantity > item.stockQuantity) {
               toast({ title: "Stock Limit", description: `Max stock for ${item.name} is ${item.stockQuantity}.`, variant: "default" });
               return { ...item, quantity: item.stockQuantity, totalPrice: item.stockQuantity * item.price };
             }
@@ -128,29 +161,30 @@ export default function SalesPage() {
           }
           return item;
         })
-        .filter(Boolean) as CartItem[] // Remove null items
+        .filter(Boolean) as CartItem[] 
     );
   };
-   const setExactQuantity = (productId: string, newQuantity: number) => {
-    const productInCart = cartItems.find(item => item.productId === productId);
+
+   const setExactQuantity = (productId: string, itemType: 'product' | 'service', newQuantity: number) => {
+    const productInCart = cartItems.find(item => item.productId === productId && item.itemType === itemType);
     if (!productInCart) return;
 
     if (newQuantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, itemType);
       return;
     }
-    if (newQuantity > productInCart.stockQuantity) {
+    if (productInCart.itemType === 'product' && productInCart.stockQuantity !== undefined && newQuantity > productInCart.stockQuantity) {
         toast({ title: "Stock Limit", description: `Cannot set quantity for ${productInCart.name} above stock level (${productInCart.stockQuantity}).`, variant: "default" });
         setCartItems(prevItems =>
             prevItems.map(item =>
-            item.productId === productId ? { ...item, quantity: productInCart.stockQuantity, totalPrice: productInCart.stockQuantity * item.price } : item
+            (item.productId === productId && item.itemType === itemType) ? { ...item, quantity: productInCart.stockQuantity!, totalPrice: productInCart.stockQuantity! * item.price } : item
             )
         );
         return;
     }
     setCartItems(prevItems =>
       prevItems.map(item =>
-        item.productId === productId ? { ...item, quantity: newQuantity, totalPrice: newQuantity * item.price } : item
+        (item.productId === productId && item.itemType === itemType) ? { ...item, quantity: newQuantity, totalPrice: newQuantity * item.price } : item
       )
     );
   };
@@ -183,7 +217,7 @@ export default function SalesPage() {
     } else if (promoDetails.type === 'percentage') {
       discount = currentSubtotal * promoDetails.value;
     }
-    return Math.min(discount, currentSubtotal); // Discount cannot exceed subtotal
+    return Math.min(discount, currentSubtotal); 
   };
 
   const actualDiscountApplied = calculateDiscount(subtotal, appliedPromoCode);
@@ -193,10 +227,17 @@ export default function SalesPage() {
   const changeDue = selectedPaymentMethod === 'cash' ? Math.max(0, parseFloat(amountTendered || "0") - total) : 0;
 
 
-  const filteredProducts = products
-    .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())))
-    .filter(p => selectedCategory === "All" || p.category === selectedCategory)
-    .filter(p => p.isVisibleOnPOS && p.stockQuantity > 0);
+  const filteredCatalogItems = catalogItems
+    .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || ((item as Product).sku && (item as Product).sku.toLowerCase().includes(searchTerm.toLowerCase())))
+    .filter(item => selectedCategory === "All" || item.category === selectedCategory)
+    // For products, also check isVisibleOnPOS and stockQuantity > 0. For services, just isVisibleOnPOS.
+    .filter(item => {
+        if (item.itemType === 'product') {
+            return item.isVisibleOnPOS && (item as Product).stockQuantity > 0;
+        }
+        return item.isVisibleOnPOS;
+    });
+
 
   const handleApplyPromoCode = () => {
     const code = promoCodeInput.trim().toUpperCase();
@@ -223,7 +264,6 @@ export default function SalesPage() {
     setCurrentStep('payment');
     setAmountTendered(""); 
     
-    // Pre-fill receipt recipient if customer is selected
     const customer = customers.find(c => c.id === selectedCustomerId);
     if (customer) {
         setReceiptRecipient(customer.email || customer.phone || "");
@@ -276,20 +316,32 @@ export default function SalesPage() {
         userDoc.storeId,
         user.uid,
         userDoc.displayName,
-        transactionItems,
+        cartItems, // Pass original CartItem[] to addTransaction as it handles mapping now
         subtotal,
         tax,
         total,
         selectedPaymentMethod || "other", 
         selectedCustomerId,
         customerForTx?.name,
-        // TODO: Pass actualDiscountApplied and appliedPromoCode to addTransaction
       );
       toast({ title: "Sale Finalized!", description: "Transaction saved." });
-      resetTerminalState(false); // Keep customer assigned for potential next sale
+      resetTerminalState(false); 
       
-      const refreshedProducts = await getProductsByStoreId(userDoc.storeId);
-      setProducts(refreshedProducts.filter(p => p.isVisibleOnPOS && p.stockQuantity > 0));
+      // Refetch products and services to update stock and visibility
+        const [refreshedProducts, refreshedServices] = await Promise.all([
+            getProductsByStoreId(userDoc.storeId),
+            getServicesByStoreId(userDoc.storeId),
+        ]);
+        setProducts(refreshedProducts);
+        setServices(refreshedServices);
+        const activeProducts: CatalogDisplayItem[] = refreshedProducts
+            .filter(p => p.isVisibleOnPOS && p.stockQuantity > 0)
+            .map(p => ({ ...p, itemType: 'product' }));
+        const activeServices: CatalogDisplayItem[] = refreshedServices
+            .filter(s => s.isVisibleOnPOS)
+            .map(s => ({ ...s, itemType: 'service' }));
+        setCatalogItems([...activeProducts, ...activeServices].sort((a,b) => a.name.localeCompare(b.name)));
+
 
     } catch (error: any) {
       console.error("Finalize sale error:", error);
@@ -334,7 +386,7 @@ export default function SalesPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input 
-              placeholder="Search products or scan barcode..." 
+              placeholder="Search products, services, or scan barcode..." 
               className="pl-10 h-12 text-lg" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -356,37 +408,44 @@ export default function SalesPage() {
           </div>
         </div>
         <ScrollArea className="flex-1 -mx-4">
-          {isLoadingProducts ? (
+          {isLoadingCatalog ? (
             <div className="flex justify-center items-center h-full">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
-          ) : filteredProducts.length === 0 ? (
+          ) : filteredCatalogItems.length === 0 ? (
              <div className="flex justify-center items-center h-full text-muted-foreground p-10 text-center">
-                No products found matching your criteria or inventory is empty.
+                No items found matching your criteria or inventory/services are empty.
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-4">
-              {filteredProducts.map(product => (
+              {filteredCatalogItems.map(item => (
                 <Card 
-                  key={product.id} 
+                  key={`${item.id}-${item.itemType}`} 
                   className="cursor-pointer hover:shadow-xl transition-shadow aspect-square flex flex-col items-center justify-center p-2 text-center shadow-md bg-card text-card-foreground"
-                  onClick={() => addToCart(product)}
+                  onClick={() => addToCart(item)}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e) => e.key === 'Enter' && addToCart(product)}
-                  aria-label={`Add ${product.name} to cart`}
+                  onKeyDown={(e) => e.key === 'Enter' && addToCart(item)}
+                  aria-label={`Add ${item.name} to cart`}
                 >
-                  <Image 
-                    src={product.imageUrl || "https://placehold.co/80x80.png"} 
-                    alt={product.name} 
-                    width={60} 
-                    height={60} 
-                    className="rounded-md mb-2 object-cover" 
-                    data-ai-hint="product item"
-                  />
-                  <p className="text-sm font-medium text-foreground leading-tight line-clamp-2">{product.name}</p>
-                  <p className="text-xs text-primary font-semibold">${product.price.toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground">Stock: {product.stockQuantity}</p>
+                  {item.imageUrl ? (
+                    <Image 
+                      src={item.imageUrl} 
+                      alt={item.name} 
+                      width={60} 
+                      height={60} 
+                      className="rounded-md mb-2 object-cover" 
+                      data-ai-hint="product item"
+                    />
+                  ) : item.itemType === 'service' ? (
+                     <ConciergeBell className="h-10 w-10 text-primary mb-2" />
+                  ) : (
+                    <PackageSearch className="h-10 w-10 text-muted-foreground mb-2" />
+                  )}
+                  <p className="text-sm font-medium text-foreground leading-tight line-clamp-2">{item.name}</p>
+                  <p className="text-xs text-primary font-semibold">${item.price.toFixed(2)}</p>
+                  {item.itemType === 'product' && <p className="text-xs text-muted-foreground">Stock: {(item as Product).stockQuantity}</p>}
+                   {item.itemType === 'service' && (item as Service).durationMinutes && <p className="text-xs text-muted-foreground">{(item as Service).durationMinutes} min</p>}
                 </Card>
               ))}
             </div>
@@ -417,26 +476,32 @@ export default function SalesPage() {
         <ScrollArea className="flex-1 -mx-4">
           <div className="px-4 divide-y divide-border">
             {cartItems.map(item => (
-              <div key={item.productId} className="py-3 flex items-center gap-3">
-                <Image src={item.imageUrl || "https://placehold.co/40x40.png"} alt={item.name} width={40} height={40} className="rounded-md object-cover" data-ai-hint="cart item" />
+              <div key={`${item.productId}-${item.itemType}`} className="py-3 flex items-center gap-3">
+                {item.imageUrl ? (
+                    <Image src={item.imageUrl} alt={item.name} width={40} height={40} className="rounded-md object-cover" data-ai-hint="cart item" />
+                ) : item.itemType === 'service' ? (
+                    <ConciergeBell className="h-8 w-8 text-primary rounded-md" />
+                ) : (
+                    <PackageSearch className="h-8 w-8 text-muted-foreground rounded-md" />
+                )}
                 <div className="flex-grow">
                   <p className="font-medium text-foreground line-clamp-1">{item.name}</p>
                   <div className="flex items-center mt-1 gap-1">
-                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, -1)}><MinusCircle className="h-4 w-4"/></Button>
+                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, item.itemType!, -1)}><MinusCircle className="h-4 w-4"/></Button>
                      <Input 
                         type="number"
                         value={item.quantity}
-                        onChange={(e) => setExactQuantity(item.productId, parseInt(e.target.value) || 0)}
+                        onChange={(e) => setExactQuantity(item.productId, item.itemType!, parseInt(e.target.value) || 0)}
                         min="0"
                         className="h-7 w-12 text-sm text-center p-1"
                         aria-label={`Quantity for ${item.name}`}
                      />
-                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, 1)}><PlusCircle className="h-4 w-4"/></Button>
+                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.productId, item.itemType!, 1)}><PlusCircle className="h-4 w-4"/></Button>
                      <span className="text-xs text-muted-foreground ml-1">x ${item.price.toFixed(2)}</span>
                   </div>
                 </div>
                 <p className="font-semibold text-foreground w-20 text-right">${item.totalPrice.toFixed(2)}</p>
-                <Button variant="ghost" size="icon" className="ml-1 text-muted-foreground hover:text-destructive" onClick={() => removeFromCart(item.productId)} aria-label={`Remove ${item.name} from cart`}>
+                <Button variant="ghost" size="icon" className="ml-1 text-muted-foreground hover:text-destructive" onClick={() => removeFromCart(item.productId, item.itemType!)} aria-label={`Remove ${item.name} from cart`}>
                     <Trash2 className="h-4 w-4"/>
                 </Button>
               </div>
