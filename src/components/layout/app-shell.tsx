@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -105,36 +106,45 @@ function SyncStatusIndicator() {
   const [pendingSyncCount, setPendingSyncCount] = React.useState(0); 
 
   React.useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    if (typeof navigator !== "undefined" && typeof navigator.onLine === "boolean") {
+    const updateOnlineStatus = () => {
       setIsOnline(navigator.onLine);
-    }
+    };
 
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus(); // Initial check
 
-    const intervalId = setInterval(() => {
-      if (isOnline && pendingSyncCount > 0) {
-        setPendingSyncCount(prev => Math.max(0, prev - 1));
-      } else if (!isOnline && Math.random() < 0.1) {
-         setPendingSyncCount(prev => prev + 1);
+    let syncInterval: NodeJS.Timeout;
+    let offlineActivityInterval: NodeJS.Timeout;
+
+    if (isOnline) {
+      if (pendingSyncCount > 0) {
+        syncInterval = setInterval(() => {
+          setPendingSyncCount(prev => Math.max(0, prev - 1));
+        }, 2000); // Simulate syncing one item every 2 seconds
       }
-    }, 3000);
-
-
+    } else {
+      // Simulate occasional pending items when offline
+      offlineActivityInterval = setInterval(() => {
+        if (Math.random() < 0.2) { // 20% chance to add a pending item
+          setPendingSyncCount(prev => prev + 1);
+        }
+      }, 5000); // Check every 5 seconds
+    }
+    
+    // Clear intervals when component unmounts or dependencies change
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      clearInterval(intervalId);
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+      clearInterval(syncInterval);
+      clearInterval(offlineActivityInterval);
     };
   }, [isOnline, pendingSyncCount]);
 
+
   let statusText = "Synced";
   let Icon = Wifi;
-  let iconColorClass = "text-green-500 dark:text-green-400"; // Adjusted for dark mode
+  let iconColorClass = "text-green-500 dark:text-green-400";
 
   if (!isOnline) {
     statusText = "Offline";
