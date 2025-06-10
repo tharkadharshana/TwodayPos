@@ -1,9 +1,15 @@
+
 import { AppShell } from "@/components/layout/app-shell";
+import { UserProvider } from "@/context/UserContext";
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <UserProvider>
+      <AppShell>{children}</AppShell>
+    </UserProvider>
+  );
 }
