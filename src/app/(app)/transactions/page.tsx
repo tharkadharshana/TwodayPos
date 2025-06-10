@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -7,14 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Search, FileText, RotateCcw, FileDown, Loader2, WifiOff } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { MoreHorizontal, Search, FileText, RotateCcw, FileDown, Loader2, WifiOff, Send, HelpCircle, ReceiptText } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import { getTransactionsByStoreId } from "@/lib/firestoreUtils";
-import type { Transaction } from "@/types";
+import type { Transaction, TransactionItem } from "@/types";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { FirebaseError } from "firebase/app";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"; // Added Alert components
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 function getStatusBadgeClasses(status: Transaction['paymentStatus']): string {
   switch (status) {
@@ -32,12 +36,15 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [fetchError, setFetchError] = React.useState<string | null>(null); // Changed to fetchError for clarity
+  const [fetchError, setFetchError] = React.useState<string | null>(null);
+
+  const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false);
+  const [selectedTransaction, setSelectedTransaction] = React.useState<Transaction | null>(null);
 
   const fetchTransactions = React.useCallback(async () => {
     if (userDoc?.storeId) {
       setIsLoading(true);
-      setFetchError(null); // Clear previous errors
+      setFetchError(null);
       try {
         const fetchedTransactions = await getTransactionsByStoreId(userDoc.storeId);
         setTransactions(fetchedTransactions);
@@ -65,6 +72,25 @@ export default function TransactionsPage() {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  const handleViewDetails = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleResendReceipt = () => {
+    if (!selectedTransaction || !selectedTransaction.receiptRecipient) {
+        toast({ title: "Cannot Resend", description: "No recipient information available for this transaction.", variant: "default" });
+        return;
+    }
+    toast({ title: "Resend Receipt (Simulated)", description: `Receipt resent to ${selectedTransaction.receiptRecipient} via ${selectedTransaction.receiptChannel || "original channel"}.` });
+  };
+
+  const handleStartRefund = () => {
+     if (!selectedTransaction) return;
+    toast({ title: "Start Refund (Coming Soon)", description: `Refund process for transaction ${selectedTransaction.transactionDisplayId || selectedTransaction.id.substring(0,6)} will be implemented here.` });
+  };
+
+
   const filteredTransactions = transactions.filter(transaction => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -79,7 +105,7 @@ export default function TransactionsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl font-headline tracking-tight text-foreground">Transaction History</h1>
-        <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground">
+        <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground" onClick={() => toast({title: "Coming Soon!", description:"CSV export will be available here."})}>
           <FileDown className="mr-2 h-4 w-4" /> Export Data (Soon)
         </Button>
       </div>
@@ -158,10 +184,12 @@ export default function TransactionsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-popover text-popover-foreground">
-                          <DropdownMenuItem><FileText className="mr-2 h-4 w-4" /> View Details</DropdownMenuItem>
-                          <DropdownMenuItem><FileText className="mr-2 h-4 w-4" /> Resend Receipt</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleViewDetails(transaction)}><ReceiptText className="mr-2 h-4 w-4" /> View Details</DropdownMenuItem>
+                          <DropdownMenuItem onClick={handleResendReceipt} disabled={!selectedTransaction || !selectedTransaction.digitalReceiptSent}>
+                            <Send className="mr-2 h-4 w-4" /> Resend Receipt
+                          </DropdownMenuItem>
                           {transaction.paymentStatus === "completed" && (
-                            <DropdownMenuItem><RotateCcw className="mr-2 h-4 w-4" /> Start Refund</DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleStartRefund}><RotateCcw className="mr-2 h-4 w-4" /> Start Refund</DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -173,6 +201,115 @@ export default function TransactionsPage() {
           )}
         </CardContent>
       </Card>
+
+      {selectedTransaction && (
+        <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center">
+                <ReceiptText className="mr-2 h-6 w-6 text-primary"/>
+                Transaction Details: {selectedTransaction.transactionDisplayId || selectedTransaction.id.substring(0,6)}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedTransaction.timestamp ? format(selectedTransaction.timestamp.toDate(), "EEEE, MMMM dd, yyyy 'at' hh:mm:ss a") : 'Date not available'}
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                <div><span className="font-semibold text-foreground">Customer:</span> <span className="text-muted-foreground">{selectedTransaction.customerName || "N/A"}</span></div>
+                <div><span className="font-semibold text-foreground">Cashier:</span> <span className="text-muted-foreground">{selectedTransaction.cashierName || "N/A"}</span></div>
+              </div>
+
+              <Separator />
+              <h4 className="font-semibold text-foreground">Items:</h4>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead className="text-center">Quantity</TableHead>
+                    <TableHead className="text-right">Unit Price</TableHead>
+                    <TableHead className="text-right">Total Price</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedTransaction.items.map((item: TransactionItem, index: number) => (
+                    <TableRow key={`${item.itemId}-${index}`}>
+                      <TableCell className="font-medium text-foreground">{item.name}</TableCell>
+                      <TableCell className="text-center text-muted-foreground">{item.quantity}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">${item.unitPrice.toFixed(2)}</TableCell>
+                      <TableCell className="text-right text-foreground">${item.totalPrice.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm mt-2">
+                 <div><span className="font-semibold text-foreground">Subtotal:</span></div>
+                 <div className="text-right text-foreground">${selectedTransaction.subtotal.toFixed(2)}</div>
+
+                {selectedTransaction.discountAmount > 0 && (
+                  <>
+                    <div><span className="font-semibold text-destructive">Discount Applied{selectedTransaction.promoCode ? ` (${selectedTransaction.promoCode})` : ''}:</span></div>
+                    <div className="text-right text-destructive">-${selectedTransaction.discountAmount.toFixed(2)}</div>
+                  </>
+                )}
+
+                <div><span className="font-semibold text-foreground">Tax Amount:</span></div>
+                <div className="text-right text-foreground">${selectedTransaction.taxAmount.toFixed(2)}</div>
+                
+                <Separator className="col-span-2 my-1"/>
+
+                <div><span className="font-bold text-lg text-foreground">Total Paid:</span></div>
+                <div className="text-right font-bold text-lg text-primary">${selectedTransaction.totalAmount.toFixed(2)}</div>
+              </div>
+              
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                <div><span className="font-semibold text-foreground">Payment Method:</span> <span className="text-muted-foreground capitalize">{selectedTransaction.paymentMethod}</span></div>
+                <div>
+                    <span className="font-semibold text-foreground">Status:</span>
+                    <Badge className={`ml-2 ${getStatusBadgeClasses(selectedTransaction.paymentStatus)}`}>
+                        {selectedTransaction.paymentStatus.replace(/_/g, " ")}
+                    </Badge>
+                </div>
+                {selectedTransaction.digitalReceiptSent && (
+                     <div><span className="font-semibold text-foreground">Receipt Sent:</span> <span className="text-muted-foreground">{selectedTransaction.receiptChannel || 'Yes'} to {selectedTransaction.receiptRecipient || 'Customer'}</span></div>
+                )}
+                {!selectedTransaction.digitalReceiptSent && (
+                     <div><span className="font-semibold text-foreground">Receipt:</span> <span className="text-muted-foreground">Not sent or opted out</span></div>
+                )}
+                {selectedTransaction.notes && (
+                     <div className="col-span-2"><span className="font-semibold text-foreground">Notes:</span> <span className="text-muted-foreground">{selectedTransaction.notes}</span></div>
+                )}
+                 {selectedTransaction.offlineProcessed && (
+                     <div className="col-span-2"><span className="font-semibold text-foreground">Processing:</span> <span className="text-muted-foreground">Transaction was processed offline {selectedTransaction.syncedAt ? `(Synced: ${format(selectedTransaction.syncedAt.toDate(), 'PPp')})` : '(Pending Sync)'}</span></div>
+                )}
+              </div>
+
+            </div>
+            </ScrollArea>
+            <DialogFooter className="sm:justify-between pt-4">
+              <div>
+                <Button variant="outline" onClick={handleResendReceipt} disabled={!selectedTransaction.digitalReceiptSent || !selectedTransaction.receiptRecipient} className="text-foreground hover:bg-accent hover:text-accent-foreground">
+                    <Send className="mr-2 h-4 w-4"/>Resend Receipt
+                </Button>
+                {selectedTransaction.paymentStatus === 'completed' && (
+                    <Button variant="outline" onClick={handleStartRefund} className="ml-2 text-foreground hover:bg-accent hover:text-accent-foreground">
+                        <RotateCcw className="mr-2 h-4 w-4"/>Start Refund
+                    </Button>
+                )}
+              </div>
+              <DialogClose asChild>
+                <Button type="button" variant="secondary">Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
