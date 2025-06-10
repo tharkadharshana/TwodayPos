@@ -1,6 +1,5 @@
-
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark, TestTubeDiagonal, ConciergeBell } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark, TestTubeDiagonal, ConciergeBell, Wifi } from 'lucide-react'; // Added Wifi
 
 export const siteConfig = {
   name: "PerfectPOS",
@@ -77,6 +76,11 @@ export const settingsNavItems: NavItem[] = [
     title: "Receipts",
     href: "/settings/receipts",
     icon: FileText,
+  },
+  {
+    title: "Offline & Sync", // New Item
+    href: "/settings/offline-sync",
+    icon: Wifi,
   },
   {
     title: "General",

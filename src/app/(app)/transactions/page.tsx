@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -15,6 +14,7 @@ import type { Transaction } from "@/types";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { FirebaseError } from "firebase/app";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"; // Added Alert components
 
 function getStatusBadgeClasses(status: Transaction['paymentStatus']): string {
   switch (status) {
@@ -32,20 +32,27 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [offlineError, setOfflineError] = React.useState<string | null>(null);
+  const [fetchError, setFetchError] = React.useState<string | null>(null); // Changed to fetchError for clarity
 
   const fetchTransactions = React.useCallback(async () => {
     if (userDoc?.storeId) {
       setIsLoading(true);
-      setOfflineError(null);
+      setFetchError(null); // Clear previous errors
       try {
         const fetchedTransactions = await getTransactionsByStoreId(userDoc.storeId);
         setTransactions(fetchedTransactions);
       } catch (error: any) {
         console.error("Error fetching transactions:", error);
-        if (error instanceof FirebaseError && (error.code === 'unavailable' || error.message.includes("offline"))) {
-          setOfflineError("Cannot load transactions while offline. Please check your connection. Some previously loaded data might be shown if available.");
+        if (error instanceof FirebaseError && (error.code === 'unavailable' || error.message.toLowerCase().includes("offline") || error.message.toLowerCase().includes("network error"))) {
+          setFetchError("You appear to be offline. Transaction data could not be loaded from the server. Previously loaded data might be shown if available, or the list might be empty.");
+          toast({ 
+            title: "Offline Mode", 
+            description: "Cannot fetch latest transactions. Displaying cached data if available.", 
+            variant: "default",
+            duration: 5000
+          });
         } else {
+          setFetchError("An error occurred while fetching transactions. Please try again.");
           toast({ title: "Error", description: "Could not load transactions.", variant: "destructive" });
         }
       } finally {
@@ -98,15 +105,19 @@ export default function TransactionsPage() {
              <div className="flex justify-center items-center py-10">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
-          ) : offlineError ? (
-            <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-2">
-                <WifiOff className="h-12 w-12 text-destructive" />
-                <p className="text-lg font-semibold text-destructive">Offline</p>
-                <p>{offlineError}</p>
-                <Button onClick={fetchTransactions} variant="outline" className="mt-4 text-foreground hover:bg-accent hover:text-accent-foreground">
+          ) : fetchError ? (
+            <Alert variant={fetchError.toLowerCase().includes("offline") ? "default" : "destructive"} className="my-4">
+                <WifiOff className="h-5 w-5" />
+                <AlertTitle>{fetchError.toLowerCase().includes("offline") ? "Offline Notice" : "Loading Error"}</AlertTitle>
+                <AlertDescription>
+                    {fetchError}
+                     {fetchError.toLowerCase().includes("offline") && transactions.length > 0 && " Displaying previously loaded data."}
+                     {!fetchError.toLowerCase().includes("offline") && " Please check your internet connection or try again later."}
+                </AlertDescription>
+                <Button onClick={fetchTransactions} variant="outline" size="sm" className="mt-4 text-foreground hover:bg-accent hover:text-accent-foreground">
                     <RotateCcw className="mr-2 h-4 w-4" /> Retry
                 </Button>
-            </div>
+            </Alert>
           ) : filteredTransactions.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
                 {searchTerm ? "No transactions match your search." : "No transactions found for this store yet."}
@@ -116,7 +127,7 @@ export default function TransactionsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
-                  <TableHead>Date & Time</TableHead>
+                  <TableHead>Date &amp; Time</TableHead>
                   <TableHead className="hidden md:table-cell">Customer</TableHead>
                   <TableHead className="hidden lg:table-cell">Cashier</TableHead>
                   <TableHead className="text-right">Total</TableHead>

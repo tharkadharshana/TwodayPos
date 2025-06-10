@@ -1,7 +1,6 @@
-
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ChevronRight, Landmark, FileText, Users, CreditCard, Bell, Palette, ShieldCheck, ShoppingBag } from "lucide-react";
+import { ChevronRight, Landmark, FileText, Users, CreditCard, Bell, Palette, ShieldCheck, ShoppingBag, Wifi } from "lucide-react"; // Added Wifi
 import { settingsNavItems } from "@/config/site";
 
 // Define custom icons before they are used
@@ -27,23 +26,15 @@ const HardDriveIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <line x1="10" y1="16" x2="10.01" y2="16"></line>
   </svg>
 );
-const WifiOffIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <line x1="1" y1="1" x2="23" y2="23"></line>
-    <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
-    <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
-    <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
-    <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
-    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-    <line x1="12" y1="20" x2="12.01" y2="20"></line>
-  </svg>
-);
+// WifiOffIcon was here, but Wifi is now directly imported from lucide-react, so not needed as custom SVG
+// const WifiOffIcon = ...
 
 const settingCategories = [
   { title: "Store Details", description: "Manage store name, address, contact info.", href: "/settings/store", icon: Landmark },
   { title: "Tax Settings", description: "Configure tax rates and rules.", href: "/settings/taxes", icon: PercentIcon },
   { title: "Business Hours", description: "Set your operational hours.", href: "/settings/hours", icon: ClockIcon },
   { title: "Digital Receipts", description: "Customize receipt logo and messages.", href: "/settings/receipts", icon: FileText },
+  { title: "Offline & Sync", description: "Manage offline mode and data sync.", href: "/settings/offline-sync", icon: Wifi }, // New Entry
   { title: "User Management", description: "Manage staff accounts and roles.", href: "/settings/users", icon: Users },
   { title: "Payment Gateways", description: "Connect and manage payment processors.", href: "/settings/payments", icon: CreditCard },
   { title: "Notifications", description: "Configure alert preferences.", href: "/settings/notifications", icon: Bell },
@@ -52,26 +43,35 @@ const settingCategories = [
   { title: "Integrations", description: "Manage third-party app connections.", href: "/settings/integrations", icon: PuzzleIcon },
   { title: "Subscription", description: "Manage your PerfectPOS subscription.", href: "/settings/subscription", icon: StarIcon },
   { title: "Devices", description: "Manage connected POS devices.", href: "/settings/devices", icon: HardDriveIcon },
-  { title: "Offline Mode", description: "Configure offline transaction settings.", href: "/settings/offline", icon: WifiOffIcon },
+  // { title: "Offline Mode", description: "Configure offline transaction settings.", href: "/settings/offline", icon: WifiOffIcon }, // Replaced by Offline & Sync
   { title: "Product Settings", description: "Manage categories, variants, and modifiers.", href: "/settings/products", icon: ShoppingBag },
 ];
 
 export default function SettingsPage() {
+  // Filter out any potential old "Offline Mode" if it somehow exists, and sort to ensure "General" is last if it's there
+  const displayedCategories = settingCategories.filter(cat => cat.href !== "/settings/offline");
+  
+  // Ensure the settingsNavItems from config are prioritized for icons, then our local map
+  const finalCategories = displayedCategories.map(category => {
+    const navItemConfig = settingsNavItems.find(navItem => navItem.href === category.href);
+    return {
+      ...category,
+      icon: navItemConfig?.icon || category.icon, // Prioritize icon from settingsNavItems
+    };
+  }).sort((a, b) => {
+    if (a.href === "/settings") return 1; // General last
+    if (b.href === "/settings") return -1;
+    return a.title.localeCompare(b.title);
+  });
+
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-3xl font-headline tracking-tight text-foreground">Settings</h1>
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {settingCategories.map((category) => {
-          const isCoreSetting = settingsNavItems.some(navItem => navItem.href === category.href);
-          let IconComponent = category.icon; 
-          if (isCoreSetting) {
-            const navItemConfig = settingsNavItems.find(navItem => navItem.href === category.href);
-            if (navItemConfig && navItemConfig.icon) {
-              IconComponent = navItemConfig.icon;
-            }
-          }
-          
+        {finalCategories.map((category) => {
+          const IconComponent = category.icon;
           return (
             <Link href={category.href} key={category.title} className="block hover:no-underline">
               <Card className="shadow-lg hover:shadow-xl transition-shadow h-full flex flex-col">
