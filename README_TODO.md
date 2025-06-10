@@ -6,32 +6,40 @@ This document lists features that are currently placeholders, partially implemen
 ## I. Major Features & Systems to Implement/Complete
 
 1.  **User Roles & Permissions (Full Implementation)**:
-    *   **Admin User Management UI**: Admins need a UI (e.g., `/settings/users`) to invite/add new users (cashiers, managers) to their store, assign/change roles, and deactivate accounts.
+    *   **Admin User Management UI (`/settings/users`)**:
+        *   **Add/Invite New Users**: Admins need a UI to invite/add new users (cashiers, managers) to their store. This involves deciding on an invitation flow (e.g., email invite, admin sets temporary password, or user registers and gets linked). Current system only allows new user registration to create new admins/stores.
+        *   **Send Password Reset**: Implement functionality for admins to trigger password resets for users (requires Firebase Admin SDK backend or careful client-side handling).
     *   **Modify Registration**: Decide if public registration should continue to create new stores/admins, or shift to an invite-only system for adding users to existing stores.
-    *   **Page-Level Access Control**: Server-side or robust client-side checks on each page to prevent direct URL access by unauthorized roles.
-    *   **Component-Level Access Control**: Conditionally render UI elements/actions within pages based on role (e.g., only managers see 'Edit Product', cashiers can't access settings).
-    *   **Firestore Security Rules**: Implement comprehensive Firestore security rules to enforce data access and modification permissions for each role at the backend. This is critical for security.
+    *   **Page-Level Access Control (Server-Side or Robust Client)**: While client-side navigation filtering is in place, robust page-level checks (ideally server-side or via Next.js middleware with user session checks) are needed to prevent direct URL access by unauthorized roles.
+    *   **Component-Level Access Control**: Conditionally render UI elements/actions *within* pages based on role more extensively (e.g., only managers see 'Edit Product' button on list page, cashiers can't access specific settings fields).
+    *   **Firestore Security Rules**: Implement comprehensive Firestore security rules to enforce data access and modification permissions for each role at the backend. This is critical for security and data integrity. (e.g., cashiers can only create transactions for their `storeId`, managers can update products in their `storeId`, admins can manage users in their `storeId`).
+
 2.  **Payment Gateway Integration**:
     *   Integrate with real payment gateways (e.g., Stripe, Square) for actual card processing.
     *   Handle payment intents, tokenization, and secure transaction processing.
     *   Manage payment terminal hardware integration if applicable.
+
 3.  **Appointment Booking System (for Services)**:
     *   For services marked as `isBookable`.
     *   Calendar UI for viewing availability and booking appointments.
     *   Staff assignment and resource management for bookings.
     *   Customer notifications for bookings (confirmations, reminders).
+
 4.  **Advanced Reporting & Analytics**:
     *   Develop comprehensive reports beyond basic transaction listing: sales summaries (by product, category, staff, time period), profit/loss, inventory value, customer analytics.
     *   Visual dashboards with customizable date ranges and filters, using live aggregated data.
     *   Consider Firebase Functions for data aggregation.
+
 5.  **Full "Cloud Only (Strict Sync)" Mode Implementation**:
     *   Extend the `await` and UI blocking pattern to *all* data write operations throughout the application when this mode is active (currently demonstrated for add/edit product and finalize sale).
     *   Implement a global UI loading/blocking state manager for this mode.
     *   Evaluate if reads should also bypass cache (`getDocFromServer`, `getDocsFromServer`) in this mode for absolute consistency, and implement if necessary.
+
 6.  **Real-time Multi-Terminal Stock & Data Updates**:
     *   While Firestore syncs, achieving near real-time stock visibility across all active terminals without *any* delay might require Firestore real-time listeners on critical data (e.g., product stock) and more sophisticated client-side state management for merging updates.
+
 7.  **Advanced Offline Conflict Resolution UI**:
-    *   For "Offline Friendly" mode, design and implement UI/UX for handling scenarios where an offline-queued operation (e.g., transaction) fails during server sync due to conflicts (e.g., insufficient stock discovered upon sync). This involves alerting the user and providing tools to resolve the issue (e.g., voiding part of a sale, suggesting alternatives).
+    *   For "Offline Friendly" mode, design and implement UI/UX for handling scenarios where an offline-queued operation (e.g., transaction updating stock) fails during server sync due to conflicts (e.g., insufficient stock discovered upon sync). This involves alerting the user and providing tools to resolve the issue (e.g., voiding part of a sale, suggesting alternatives).
 
 ## II. Specific Page/Feature TODOs
 
@@ -54,8 +62,8 @@ This document lists features that are currently placeholders, partially implemen
 
 ### C. Inventory (`/inventory`)
 -   **CSV Import**: Implement full CSV parsing logic to create/update products in Firestore. Include error handling and preview for imported data.
--   **Stock Adjustments**: Dedicated UI/flow for adjusting stock quantities (receiving, counts, shrinkage/damage) with history logging.
--   **Product History**: View sales, stock adjustments, price changes for a product.
+-   **Stock Adjustments**: Dedicated UI/flow for adjusting stock quantities (receiving, counts, shrinkage/damage) with history logging (placeholder actions exist).
+-   **Product History**: View sales, stock adjustments, price changes for a product (placeholder action exists).
 -   **Advanced Product Features**: Product variants, modifiers, composite products/bundles.
 -   **Purchase Orders**: System for creating and managing purchase orders to suppliers.
 
@@ -82,6 +90,9 @@ This document lists features that are currently placeholders, partially implemen
 -   UI for users to provide feedback on AI suggestions.
 
 ### H. Settings
+-   **User Management (`/settings/users`)**:
+    *   Implement the "Add New User" / Invitation flow.
+    *   Implement "Send Password Reset" functionality for users.
 -   **Store Settings (`/settings/store`)**:
     *   Implement actual logo file upload (e.g., to Firebase Cloud Storage) and update `logoUrl`.
 -   **Receipt Settings (`/settings/receipts`)**:
@@ -98,7 +109,6 @@ This document lists features that are currently placeholders, partially implemen
 -   **Appearance (`/settings/appearance`)**: Implement actual theme customization options.
 -   **Integrations (`/settings/integrations`)**: Develop actual third-party integrations.
 -   **Payment Gateways (`/settings/payments`)**: Implement connections beyond placeholders.
--   **User Management (`/settings/users`)**: Build the UI as per section I.1.
 
 ## III. General System Enhancements
 
@@ -120,5 +130,3 @@ This document lists features that are currently placeholders, partially implemen
 8.  **Documentation**: User guides, developer documentation.
 
 This list represents a significant amount of work but covers key areas for maturing the PerfectPOS application.
-
-    

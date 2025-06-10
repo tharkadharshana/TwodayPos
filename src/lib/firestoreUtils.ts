@@ -17,7 +17,7 @@ import {
   runTransaction
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem, Service, CartItem } from "@/types";
+import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem, Service, CartItem, UserRole } from "@/types";
 
 // --- User and Store Management ---
 
@@ -79,7 +79,7 @@ export const createInitialStoreForUser = async (
     uid: userId,
     email: email,
     displayName: displayNameInput || email.split("@")[0] || "New User",
-    role: "admin",
+    role: "admin", // New users are admins of their own store
     storeId: storeId,
     avatarUrl: "",
     createdAt: serverTimestamp() as Timestamp,
@@ -104,12 +104,12 @@ export const getUserDocument = async (userId: string): Promise<UserDocument | nu
     const data = userSnap.data();
     return {
       uid: userSnap.id,
-      email: data.email || "", // Ensure email exists
+      email: data.email || "", 
       displayName: data.displayName || "",
       role: data.role || "cashier",
       storeId: data.storeId || null,
-      createdAt: data.createdAt, // Should exist
-      lastLoginAt: data.lastLoginAt || serverTimestamp() as Timestamp, // Default if missing
+      createdAt: data.createdAt, 
+      lastLoginAt: data.lastLoginAt || serverTimestamp() as Timestamp, 
       isActive: data.isActive === undefined ? true : data.isActive,
       avatarUrl: data.avatarUrl || "",
     } as UserDocument;
@@ -135,9 +135,9 @@ export const getStoreDetails = async (storeId: string | null): Promise<Store | n
         contactPhone: data.contactPhone || "",
         taxRate: data.taxRate ?? 0.0,
         currency: data.currency ?? "USD",
-        ownerId: data.ownerId, // Should exist
-        createdAt: data.createdAt, // Should exist
-        lastUpdatedAt: data.lastUpdatedAt, // Should exist
+        ownerId: data.ownerId, 
+        createdAt: data.createdAt, 
+        lastUpdatedAt: data.lastUpdatedAt, 
         isActive: data.isActive ?? true,
         slogan: data.slogan || "",
         logoUrl: data.logoUrl || "",
@@ -158,7 +158,7 @@ export const getStoreDetails = async (storeId: string | null): Promise<Store | n
             emailSubject: "Your Receipt from {StoreName} (Order #{OrderNumber})",
             emailBodyPrefix: "Thank you for your order! You can view your receipt here: {ReceiptLink}",
         },
-        dataHandlingMode: data.dataHandlingMode || 'offlineFriendly', // Ensure default
+        dataHandlingMode: data.dataHandlingMode || 'offlineFriendly',
       } as Store;
   }
   return null;
@@ -171,6 +171,39 @@ export const updateStoreDetails = async (storeId: string, data: Partial<Store>):
   const storeRef = doc(db, "stores", storeId);
   const updateData = { ...data, lastUpdatedAt: serverTimestamp() };
   await updateDoc(storeRef, updateData);
+};
+
+export const getUsersByStoreId = async (storeId: string): Promise<UserDocument[]> => {
+  if (!storeId) {
+    console.warn("getUsersByStoreId called without a storeId. Returning empty array.");
+    return [];
+  }
+  const usersCollection = collection(db, "users");
+  const q = query(usersCollection, where("storeId", "==", storeId), orderBy("displayName"));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(docSnap => ({ uid: docSnap.id, ...docSnap.data() } as UserDocument));
+};
+
+export const updateUserRole = async (userId: string, newRole: UserRole): Promise<void> => {
+  if (!userId) {
+    throw new Error("updateUserRole called without a userId.");
+  }
+  const userRef = doc(db, "users", userId);
+  await updateDoc(userRef, {
+    role: newRole,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
+
+export const updateUserStatus = async (userId: string, isActive: boolean): Promise<void> => {
+  if (!userId) {
+    throw new Error("updateUserStatus called without a userId.");
+  }
+  const userRef = doc(db, "users", userId);
+  await updateDoc(userRef, {
+    isActive: isActive,
+    lastUpdatedAt: serverTimestamp(),
+  });
 };
 
 
@@ -225,12 +258,6 @@ export const getProductsByStoreId = async (storeId: string | null): Promise<Prod
     console.warn("getProductsByStoreId called with a null or undefined storeId. Returning empty array.");
     return [];
   }
-  // For very large catalogs (e.g., 50,000+ items), directly fetching all products like this
-  // can be inefficient for initial load, both online and for caching.
-  // Consider implementing pagination (using startAfter, limit) or
-  // more specific initial filters (e.g., by a default category) if performance issues arise.
-  // Firestore's offline cache will store results of queries made, so subsequent loads of the same
-  // filtered/paginated data will be fast from cache.
   const productsCollection = collection(db, "products");
   const q = query(productsCollection, where("storeId", "==", storeId), orderBy("name"));
   const querySnapshot = await getDocs(q);
@@ -288,8 +315,6 @@ export const getServicesByStoreId = async (storeId: string | null): Promise<Serv
     console.warn("getServicesByStoreId called with a null or undefined storeId. Returning empty array.");
     return [];
   }
-  // Similar to products, for very large numbers of services, consider pagination or
-  // more targeted initial fetching strategies.
   const servicesCollection = collection(db, "services");
   const q = query(servicesCollection, where("storeId", "==", storeId), orderBy("name"));
   const querySnapshot = await getDocs(q);
@@ -386,7 +411,7 @@ export const addTransaction = async (
   taxAmount: number,
   totalAmount: number,
   paymentMethod: string,
-  terminalId?: string, // Added optional terminalId
+  terminalId?: string,
   customerId?: string,
   customerName?: string,
   discountAmountVal?: number, 
@@ -419,7 +444,7 @@ export const addTransaction = async (
       id: newTransactionRef.id,
       storeId,
       transactionDisplayId: newTransactionRef.id.substring(0, 8).toUpperCase(),
-      terminalId: terminalId || undefined, // Store terminalId if provided
+      terminalId: terminalId || undefined,
       timestamp: serverTimestamp() as Timestamp,
       cashierId,
       cashierName: cashierName || "N/A",
@@ -493,9 +518,6 @@ export const getTransactionsByStoreId = async (storeId: string | null, count: nu
     orderBy("timestamp", "desc"),
     limit(count)
   );
-  // Note: For a production system with many transactions, you'd implement pagination here.
-  // The 'count' parameter is a simple form of limiting, but true pagination
-  // would involve `startAfter` with the last document from the previous page.
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Transaction));
 };

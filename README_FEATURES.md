@@ -85,7 +85,7 @@ This document outlines the current features and functionalities implemented in t
 - **Digital Receipts (Simulated)**: Options for phone/email input, "Send SMS"/"Send Email" (shows toast), "No Receipt".
 - **Transaction Finalization**:
     - Saves transaction details (items, totals, customer, cashier, payment, promo, terminal ID) to Firestore.
-    - Decrements product `stockQuantity` in Firestore if products are sold.
+    *   Decrements product `stockQuantity` in Firestore if products are sold.
     *   Updates customer `totalSpent`, `loyaltyPoints`, `lastPurchaseAt` if assigned.
     *   **Data Handling Mode Aware**: If `dataHandlingMode` is 'cloudOnlyStrict', waits for Firestore server confirmation before completing. Otherwise (offlineFriendly), writes are optimistic.
 - **Layout**: Responsive three-column layout with minimum column widths for better stability.
@@ -174,6 +174,13 @@ This document outlines the current features and functionalities implemented in t
     - Options for "Show address on digital receipts" and "Display online ordering link".
     - Saves changes to the `Store` document in Firestore.
     - Accessible to `admin`, `manager`.
+- **User Management (`/settings/users`)**:
+    - Admins can view a list of users associated with their store.
+    - Admins can change the role (admin, manager, cashier) of other users in their store.
+    - Admins can activate or deactivate user accounts within their store.
+    - The currently logged-in admin cannot change their own role to non-admin or deactivate their own account.
+    - Adding new users from this page is a TODO (users are currently created via public registration).
+    - Accessible to `admin`.
 - **Receipt Settings (`/settings/receipts`)**:
     - UI to customize digital receipts (logo upload placeholder, header/footer messages, display options, default SMS/Email messages).
     - Static preview. Saving settings and applying them is a TODO. "Send Test Receipt" is a placeholder.
@@ -188,14 +195,14 @@ This document outlines the current features and functionalities implemented in t
     - Page to populate dummy products, customers, and transactions.
     - Accessible to `admin`.
 - **Placeholder Settings Pages**:
-    - Appearance, Devices, Business Hours, Integrations, Notifications, Product Settings (global), Payment Gateways, Security, Subscription, Tax Settings, User Management. These are stubs.
+    - Appearance, Devices, Business Hours, Integrations, Notifications, Product Settings (global), Payment Gateways, Security, Subscription, Tax Settings. These are stubs.
 
 ## 11. Data Handling & Offline Support
-- **Data Handling Modes**: User can choose between "Offline Friendly" and "Cloud Only (Strict Sync)" in settings.
+- **Data Handling Modes**: User can choose between "Offline Friendly" and "Cloud Only (Strict Sync)" in settings. This choice is saved per store.
     - **Offline Friendly Mode (Default & Recommended)**:
         - **Firestore Persistent Cache**: Enabled via `persistentLocalCache` in `src/lib/firebase.ts`. Firestore uses IndexedDB to store data locally, allowing the app to function offline by reading from and writing to this cache.
         - **Automatic Sync**: Firestore's SDK handles syncing local changes to the cloud when online and fetching updates.
-        - **Optimistic Writes**: UI updates immediately upon local cache write.
+        - **Optimistic Writes**: UI updates immediately upon local cache write for all operations.
     - **Cloud Only (Strict Sync) Mode**:
         - **Behavior**: When selected, specific critical operations are modified to `await` server confirmation:
             - **Add Product**: Waits for Firestore server confirmation.
@@ -208,9 +215,7 @@ This document outlines the current features and functionalities implemented in t
 - **TypeScript**: Used throughout for type safety.
 - **Modular Components**: UI elements are broken down into re-usable components.
 - **Utility Functions**: Helper functions for common tasks (`cn`, Firestore interactions in `firestoreUtils.ts`).
-- **Context API**: `UserContext` for managing global user state, store details, and selected data handling mode.
+- **Context API**: `UserContext` for managing global user state, store details (including `dataHandlingMode`), and selected data handling mode.
 - **Environment Variables**: Firebase configuration managed via `.env`.
 
 This summary covers the main features and their current state of implementation.
-
-    

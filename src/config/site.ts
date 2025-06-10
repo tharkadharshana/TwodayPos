@@ -1,9 +1,9 @@
 
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark, TestTubeDiagonal, ConciergeBell, Wifi, MonitorSmartphone } from 'lucide-react';
-import type { UserDocument } from '@/types'; // Import UserRole type
+import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark, TestTubeDiagonal, ConciergeBell, Wifi, MonitorSmartphone, UserCog } from 'lucide-react';
+import type { UserDocument } from '@/types'; 
 
-export type UserRole = UserDocument['role']; // 'admin' | 'manager' | 'cashier'
+export type UserRole = UserDocument['role']; 
 
 export const siteConfig = {
   name: "PerfectPOS",
@@ -18,7 +18,7 @@ export type NavItem = {
   external?: boolean;
   label?: string;
   items?: NavItem[];
-  allowedRoles?: UserRole[]; // Roles that can access this item
+  allowedRoles?: UserRole[]; 
 };
 
 export const mainNavItems: NavItem[] = [
@@ -76,7 +76,7 @@ export const mainNavItems: NavItem[] = [
     title: "Developer",
     href: "/dev/populate-data",
     icon: TestTubeDiagonal, 
-    allowedRoles: ['admin'], // Typically admin only
+    allowedRoles: ['admin'], 
   },
 ];
 
@@ -86,6 +86,12 @@ export const settingsNavItems: NavItem[] = [
     href: "/settings/store",
     icon: Landmark,
     allowedRoles: ['admin', 'manager'],
+  },
+  {
+    title: "User Management",
+    href: "/settings/users",
+    icon: UserCog, // Changed icon
+    allowedRoles: ['admin'], // Only admins can manage users
   },
   {
     title: "Receipts",
@@ -100,13 +106,9 @@ export const settingsNavItems: NavItem[] = [
     allowedRoles: ['admin', 'manager'],
   },
   {
-    title: "General", // Main settings link
+    title: "General", 
     href: "/settings",
     icon: SettingsIcon, 
-    allowedRoles: ['admin', 'manager', 'cashier'], // All roles can see the settings hub
+    allowedRoles: ['admin', 'manager', 'cashier'], 
   },
-  // Add allowedRoles to other specific settings pages if they exist and need restriction
-  // Example: User Management should be admin only.
-  // { title: "User Management", href: "/settings/users", icon: UsersIcon, allowedRoles: ['admin'] } 
 ];
-
