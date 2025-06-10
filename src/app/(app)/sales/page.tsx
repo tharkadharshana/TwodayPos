@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare } from "lucide-react";
+import { PlusCircle, Search, Trash2, CreditCard, UserPlus, PackageSearch, Filter, ShoppingBasket, Percent, Loader2, MinusCircle, Wallet, Mail, MessageSquare, XCircle, UserCheck, UserX } from "lucide-react";
 import Image from "next/image";
 import { useUser } from "@/context/UserContext";
 import { getProductsByStoreId, getCustomersByStoreId, addTransaction, getStoreDetails } from "@/lib/firestoreUtils";
@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
 const mockCategories = ["All", "Drinks", "Pastries", "Food", "Merchandise"];
@@ -44,6 +45,7 @@ export default function SalesPage() {
 
   const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<string | undefined>(undefined);
+  const [selectedCustomerName, setSelectedCustomerName] = React.useState<string | undefined>(undefined);
   
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedCategory, setSelectedCategory] = React.useState("All");
@@ -59,6 +61,10 @@ export default function SalesPage() {
   const [appliedPromoCode, setAppliedPromoCode] = React.useState<string | null>(null);
   const [appliedDiscountAmount, setAppliedDiscountAmount] = React.useState<number>(0);
   const [receiptRecipient, setReceiptRecipient] = React.useState<string>("");
+
+  // Customer Modal State
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = React.useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = React.useState("");
 
 
   React.useEffect(() => {
@@ -149,9 +155,12 @@ export default function SalesPage() {
     );
   };
   
-  const resetTerminalState = () => {
+  const resetTerminalState = (clearCustomer: boolean = true) => {
     setCartItems([]);
-    setSelectedCustomerId(undefined);
+    if (clearCustomer) {
+      setSelectedCustomerId(undefined);
+      setSelectedCustomerName(undefined);
+    }
     setCurrentStep('order');
     setSelectedPaymentMethod(null);
     setAmountTendered("");
@@ -199,7 +208,7 @@ export default function SalesPage() {
     if (promoDetails) {
         const calculatedDisc = calculateDiscount(subtotal, code);
         setAppliedPromoCode(code);
-        setAppliedDiscountAmount(calculatedDisc); // This will trigger re-calculation of total
+        setAppliedDiscountAmount(calculatedDisc);
         toast({ title: "Promo Applied!", description: `Code "${code}" applied.`});
         setPromoCodeInput("");
     } else {
@@ -212,7 +221,15 @@ export default function SalesPage() {
   const handlePaymentMethodSelect = (method: 'cash' | 'card') => {
     setSelectedPaymentMethod(method);
     setCurrentStep('payment');
-    setAmountTendered(""); // Reset tendered amount
+    setAmountTendered(""); 
+    
+    // Pre-fill receipt recipient if customer is selected
+    const customer = customers.find(c => c.id === selectedCustomerId);
+    if (customer) {
+        setReceiptRecipient(customer.email || customer.phone || "");
+    } else {
+        setReceiptRecipient("");
+    }
   };
 
   const handleProcessPayment = async () => {
@@ -230,7 +247,6 @@ export default function SalesPage() {
     }
 
     setIsProcessingPayment(true);
-    // Simulate payment processing
     await new Promise(resolve => setTimeout(resolve, 1500)); 
     setIsProcessingPayment(false);
     setCurrentStep('receipt');
@@ -254,25 +270,24 @@ export default function SalesPage() {
         totalPrice: item.totalPrice,
       }));
       
-      const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+      const customerForTx = customers.find(c => c.id === selectedCustomerId);
 
       await addTransaction(
         userDoc.storeId,
         user.uid,
         userDoc.displayName,
         transactionItems,
-        subtotal, // Original subtotal before discount
+        subtotal,
         tax,
         total,
         selectedPaymentMethod || "other", 
         selectedCustomerId,
-        selectedCustomer?.name,
-        // TODO: Pass discount details to addTransaction if needed for records
+        customerForTx?.name,
+        // TODO: Pass actualDiscountApplied and appliedPromoCode to addTransaction
       );
       toast({ title: "Sale Finalized!", description: "Transaction saved." });
-      resetTerminalState(); // Clears cart and resets everything
+      resetTerminalState(false); // Keep customer assigned for potential next sale
       
-      // Refresh product list (especially stock quantities)
       const refreshedProducts = await getProductsByStoreId(userDoc.storeId);
       setProducts(refreshedProducts.filter(p => p.isVisibleOnPOS && p.stockQuantity > 0));
 
@@ -284,6 +299,31 @@ export default function SalesPage() {
   };
   
   const quickTenderAmounts = [10, 20, 50, 100];
+
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomerId(customer.id);
+    setSelectedCustomerName(customer.name);
+    setReceiptRecipient(customer.email || customer.phone || "");
+    setIsCustomerModalOpen(false);
+    setCustomerSearchTerm("");
+    toast({ title: "Customer Assigned", description: `${customer.name} assigned to this transaction.`});
+  };
+
+  const handleClearCustomer = () => {
+    setSelectedCustomerId(undefined);
+    setSelectedCustomerName(undefined);
+    setReceiptRecipient("");
+    toast({ title: "Customer Cleared", description: "Customer unassigned from transaction."});
+  };
+
+  const filteredCustomersForModal = customers.filter(customer => {
+    const search = customerSearchTerm.toLowerCase();
+    return (
+        customer.name.toLowerCase().includes(search) ||
+        (customer.email && customer.email.toLowerCase().includes(search)) ||
+        (customer.phone && customer.phone.includes(search))
+    );
+  });
 
 
   return (
@@ -367,8 +407,8 @@ export default function SalesPage() {
                         <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive"><Trash2 className="h-5 w-5"/></Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
-                        <AlertDialogHeader> <AlertDialogTitle>Clear Cart?</AlertDialogTitle> <AlertDialogDescription> Are you sure you want to remove all items from the current order? </AlertDialogDescription> </AlertDialogHeader>
-                        <AlertDialogFooter> <AlertDialogCancel>Cancel</AlertDialogCancel> <AlertDialogAction onClick={resetTerminalState} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Clear Cart</AlertDialogAction> </AlertDialogFooter>
+                        <AlertDialogHeader> <AlertDialogTitle>Clear Cart?</AlertDialogTitle> <AlertDialogDescription> Are you sure you want to remove all items from the current order? This will not clear the assigned customer. </AlertDialogDescription> </AlertDialogHeader>
+                        <AlertDialogFooter> <AlertDialogCancel>Cancel</AlertDialogCancel> <AlertDialogAction onClick={() => resetTerminalState(false)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Clear Cart</AlertDialogAction> </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
             )}
@@ -412,23 +452,69 @@ export default function SalesPage() {
                     <Label htmlFor="promo-code" className="text-xs text-muted-foreground">Promo Code</Label>
                     <Input id="promo-code" placeholder="Enter code" className="h-10" value={promoCodeInput} onChange={(e) => setPromoCodeInput(e.target.value)} />
                 </div>
-                <Button onClick={handleApplyPromoCode} className="h-10 shrink-0" disabled={!promoCodeInput}>Apply Promo</Button>
+                <Button onClick={handleApplyPromoCode} className="h-10 shrink-0" disabled={!promoCodeInput || subtotal === 0}>Apply Promo</Button>
             </div>
-            <div>
-                <Label htmlFor="customer-select" className="text-xs text-muted-foreground">Assign Customer (Optional)</Label>
-                <Select onValueChange={setSelectedCustomerId} value={selectedCustomerId}>
-                    <SelectTrigger id="customer-select" className="h-10">
+            
+            <div className="mb-2">
+                <Label className="text-xs text-muted-foreground">Customer</Label>
+                {selectedCustomerId && selectedCustomerName ? (
+                    <div className="flex items-center justify-between p-2 border rounded-md bg-background h-10">
+                        <span className="text-sm font-medium text-foreground flex items-center"><UserCheck className="mr-2 h-4 w-4 text-primary"/>{selectedCustomerName}</span>
+                        <Button variant="ghost" size="icon" onClick={handleClearCustomer} className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                            <UserX className="h-4 w-4" />
+                            <span className="sr-only">Clear customer</span>
+                        </Button>
+                    </div>
+                ) : (
+                    <Button variant="outline" className="w-full h-10 justify-start" onClick={() => setIsCustomerModalOpen(true)}>
                         <UserPlus className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <SelectValue placeholder="Select a customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {customers.map(customer => (
-                            <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                        Assign Customer
+                    </Button>
+                )}
             </div>
+            
+            <Dialog open={isCustomerModalOpen} onOpenChange={setIsCustomerModalOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Assign Customer</DialogTitle>
+                        <DialogDescription>Search for an existing customer or add a new one.</DialogDescription>
+                    </DialogHeader>
+                    <div className="relative mt-2 mb-4">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            placeholder="Search by name, email, phone..." 
+                            className="pl-10"
+                            value={customerSearchTerm}
+                            onChange={(e) => setCustomerSearchTerm(e.target.value)} 
+                        />
+                    </div>
+                    <ScrollArea className="h-[200px] border rounded-md">
+                        {filteredCustomersForModal.length > 0 ? (
+                            filteredCustomersForModal.map(customer => (
+                                <div key={customer.id} 
+                                     className="p-2 hover:bg-accent cursor-pointer border-b last:border-b-0"
+                                     onClick={() => handleSelectCustomer(customer)}>
+                                    <p className="font-medium text-sm text-foreground">{customer.name}</p>
+                                    <p className="text-xs text-muted-foreground">{customer.email || customer.phone || "No contact info"}</p>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="p-4 text-center text-sm text-muted-foreground">
+                                {customerSearchTerm ? "No customers match your search." : "No customers found."}
+                            </p>
+                        )}
+                    </ScrollArea>
+                    <DialogFooter className="sm:justify-between pt-4">
+                        <Button type="button" variant="outline" onClick={() => toast({ title: "Coming Soon!", description: "Full customer creation form will be available here."})}>
+                            <UserPlus className="mr-2 h-4 w-4" /> Add New Customer
+                        </Button>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">Cancel</Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <Separator className="my-4" />
             <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
@@ -460,10 +546,10 @@ export default function SalesPage() {
             <>
                 <h2 className="text-xl font-semibold mb-6 text-center text-foreground">Select Payment Method</h2>
                 <div className="grid grid-cols-1 gap-4 flex-grow content-center">
-                    <Button onClick={() => handlePaymentMethodSelect('cash')} className="h-20 text-xl bg-accent-orange hover:bg-accent-orange/90 text-white">
+                    <Button onClick={() => handlePaymentMethodSelect('cash')} className="h-20 text-xl bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600">
                         <Wallet className="mr-3 h-8 w-8"/>Cash
                     </Button>
-                    <Button onClick={() => handlePaymentMethodSelect('card')} className="h-20 text-xl bg-accent-cyan hover:bg-accent-cyan/90 text-white">
+                    <Button onClick={() => handlePaymentMethodSelect('card')} className="h-20 text-xl bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600">
                         <CreditCard className="mr-3 h-8 w-8"/>Card
                     </Button>
                 </div>
@@ -489,12 +575,13 @@ export default function SalesPage() {
                         <Button key={amount} variant="outline" className="h-12 text-base" onClick={() => setAmountTendered(amount.toString())}>${amount}</Button>
                     ))}
                     <Button variant="outline" className="h-12 text-base" onClick={() => setAmountTendered(total.toFixed(2))}>Exact Amount</Button>
+                     <Button variant="outline" className="h-12 text-base col-span-2" onClick={() => setAmountTendered("")}>Clear</Button>
                 </div>
                 <div className="text-right text-2xl font-bold my-4 p-3 bg-muted rounded-md">
                     <span className="text-muted-foreground">Change Due: </span>
-                    <span className="text-accent-yellow">${changeDue.toFixed(2)}</span>
+                    <span className="text-green-600 dark:text-green-500">${changeDue.toFixed(2)}</span>
                 </div>
-                <Button onClick={handleProcessPayment} className="w-full h-16 text-xl mt-auto" disabled={isProcessingPayment || parseFloat(amountTendered || "0") < total}>
+                <Button onClick={handleProcessPayment} className="w-full h-16 text-xl mt-auto bg-green-600 hover:bg-green-700 text-white dark:bg-green-500 dark:hover:bg-green-600" disabled={isProcessingPayment || parseFloat(amountTendered || "0") < total}>
                     {isProcessingPayment ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Cash"}
                 </Button>
             </>
@@ -509,7 +596,7 @@ export default function SalesPage() {
                     <p className="text-muted-foreground mb-2">Please use card terminal to complete payment.</p>
                     <p className="text-2xl font-bold text-foreground">Total: ${total.toFixed(2)}</p>
                 </div>
-                <Button onClick={handleProcessPayment} className="w-full h-16 text-xl mt-auto" disabled={isProcessingPayment}>
+                <Button onClick={handleProcessPayment} className="w-full h-16 text-xl mt-auto bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600" disabled={isProcessingPayment}>
                     {isProcessingPayment ? <Loader2 className="mr-2 h-6 w-6 animate-spin" /> : "Process Card"}
                 </Button>
             </>
@@ -530,10 +617,10 @@ export default function SalesPage() {
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                        <Button variant="outline" className="h-12" disabled> {/* UI Only for now */}
+                        <Button variant="outline" className="h-12" disabled> 
                             <MessageSquare className="mr-2"/> Send SMS
                         </Button>
-                        <Button variant="outline" className="h-12" disabled> {/* UI Only for now */}
+                        <Button variant="outline" className="h-12" disabled> 
                             <Mail className="mr-2"/> Send Email
                         </Button>
                     </div>
