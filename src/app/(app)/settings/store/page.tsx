@@ -1,6 +1,7 @@
+
 "use client";
 
-import * as React from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -22,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 const storeSettingsSchema = z.object({
   name: z.string().min(1, "Store name is required."),
   slogan: z.string().optional(),
-  logoUrl: z.string().url().optional().or(z.literal("")),
+  logoUrl: z.string().url("Must be a valid URL, e.g., https://example.com/logo.png").optional().or(z.literal("")),
   contactPhone: z.string().optional(),
   contactEmail: z.string().email("Invalid email address.").optional().or(z.literal("")),
   address: z.object({
@@ -47,9 +48,11 @@ type StoreSettingsFormValues = z.infer<typeof storeSettingsSchema>;
 export default function StoreSettingsPage() {
   const { userDoc } = useUser();
   const { toast } = useToast();
-  const [store, setStore] = React.useState<Store | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [isSaving, setIsSaving] = React.useState(false);
+  const [store, setStore] = useState<Store | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<StoreSettingsFormValues>({
     resolver: zodResolver(storeSettingsSchema),
@@ -68,7 +71,7 @@ export default function StoreSettingsPage() {
     },
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (userDoc?.storeId) {
       setIsLoading(true);
       getStoreDetails(userDoc.storeId)
@@ -82,12 +85,13 @@ export default function StoreSettingsPage() {
               contactPhone: data.contactPhone || "",
               contactEmail: data.contactEmail || "",
               address: data.address || { street: "", city: "", state: "", zip: "", country: "" },
-              taxRate: data.taxRate || 0.0,
+              taxRate: data.taxRate === undefined ? 0.0 : data.taxRate,
               currency: data.currency || "USD",
               websiteUrl: data.websiteUrl || "",
               showAddressOnReceipt: data.showAddressOnReceipt || false,
               enableOnlineOrderingLink: data.enableOnlineOrderingLink || false,
             });
+            if (data.logoUrl) setLocalPreview(data.logoUrl);
           } else {
              toast({ title: "Error", description: "Store details not found.", variant: "destructive" });
           }
@@ -107,16 +111,49 @@ export default function StoreSettingsPage() {
     }
     setIsSaving(true);
     try {
-      await updateStoreDetails(userDoc.storeId, data);
+      const dataToSave = { ...data };
+      await updateStoreDetails(userDoc.storeId, dataToSave);
       toast({ title: "Success", description: "Store settings updated successfully." });
       const updatedStore = await getStoreDetails(userDoc.storeId);
-      if (updatedStore) setStore(updatedStore);
+      if (updatedStore) {
+        setStore(updatedStore);
+        if (updatedStore.logoUrl) setLocalPreview(updatedStore.logoUrl); else setLocalPreview(null);
+      }
     } catch (error) {
       console.error("Error updating store details:", error);
       toast({ title: "Error", description: "Failed to update store settings.", variant: "destructive" });
     }
     setIsSaving(false);
   };
+  
+  const handleLogoButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { 
+        toast({ title: "File Too Large", description: "Please select an image smaller than 2MB.", variant: "destructive" });
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast({ title: "Invalid File Type", description: "Please select an image file (PNG, JPG, GIF, WEBP).", variant: "destructive" });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLocalPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      toast({ 
+        title: "Logo Preview Updated", 
+        description: "This is a local preview. To save, ensure the 'Store Logo URL' field has a valid web address or implement direct cloud upload.",
+        duration: 7000 
+      });
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -177,29 +214,41 @@ export default function StoreSettingsPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-foreground">Store Logo URL</FormLabel>
-                    <div className="flex items-center gap-4">
-                      <Image 
-                        src={field.value || "https://placehold.co/100x100.png"} 
+                    <div className="flex items-start gap-4">
+                      <Image
+                        src={localPreview || field.value || "https://placehold.co/100x100.png"} 
                         alt="Store Logo" 
                         width={80} 
                         height={80} 
-                        className="rounded-lg border p-1 bg-background object-cover" 
+                        className="rounded-lg border p-1 bg-background object-cover shrink-0" 
                         data-ai-hint="store logo"
-                        onError={(e) => (e.currentTarget.src = "https://placehold.co/100x100.png")}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "https://placehold.co/100x100.png";
+                           if (localPreview && localPreview !== "https://placehold.co/100x100.png") setLocalPreview("https://placehold.co/100x100.png");
+                        }}
                       />
-                      <div className="flex-grow">
-                        <FormControl>
-                            <Input placeholder="https://example.com/logo.png" {...field} className="text-foreground" />
-                        </FormControl>
-                         <FormDescription className="text-xs mt-1">
+                      <div className="flex-grow space-y-2">
+                        <div className="flex items-center gap-2">
+                           <FormControl className="flex-grow">
+                                <Input placeholder="https://example.com/logo.png" {...field} className="text-foreground" />
+                            </FormControl>
+                            <Button type="button" variant="outline" onClick={handleLogoButtonClick} className="text-foreground hover:bg-accent hover:text-accent-foreground shrink-0">
+                                <UploadCloud className="mr-2 h-4 w-4" /> Change Logo
+                            </Button>
+                        </div>
+                        <FormDescription className="text-xs">
                             Enter the full URL of your store logo. Actual upload coming soon.
                         </FormDescription>
                       </div>
-                      <Button type="button" variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground cursor-not-allowed" disabled>
-                        <UploadCloud className="mr-2 h-4 w-4" /> Change Logo
-                      </Button>
                     </div>
                     <FormMessage />
+                    <Input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="image/png, image/jpeg, image/gif, image/webp"
+                        className="hidden"
+                      />
                   </FormItem>
                 )}
               />
