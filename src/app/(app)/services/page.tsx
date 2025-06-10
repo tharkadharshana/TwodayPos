@@ -8,8 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, ConciergeBell, Edit2, Trash2, EyeOff, Eye } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, PlusCircle, Search, ConciergeBell, Edit2, Trash2, EyeOff, Eye, FileDown, UploadCloud, Loader2 } from "lucide-react";
 import type { Service } from "@/types";
 import { useUser } from "@/context/UserContext";
 import { getServicesByStoreId, deleteService } from "@/lib/firestoreUtils";
@@ -25,7 +25,49 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2 } from "lucide-react";
+
+// CSV Helper functions (could be moved to a utils file if used in multiple places)
+const escapeCSVField = (field: any): string => {
+  if (field === null || field === undefined) {
+    return "";
+  }
+  const stringField = String(field);
+  if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+    return `"${stringField.replace(/"/g, '""')}"`;
+  }
+  return stringField;
+};
+
+const convertServicesToCSV = (data: Service[], headers: string[], isTemplate: boolean = false): string => {
+  const headerRow = headers.join(',');
+  if (isTemplate) {
+    return headerRow;
+  }
+
+  const rows = data.map(service => {
+    return headers.map(header => {
+      const value = (service as any)[header];
+      return escapeCSVField(value);
+    }).join(',');
+  });
+
+  return [headerRow, ...rows].join('\n');
+};
+
+const downloadCSV = (csvString: string, filename: string) => {
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
+
 
 export default function ServicesPage() {
   const { userDoc } = useUser();
@@ -34,6 +76,16 @@ export default function ServicesPage() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [isDeleting, setIsDeleting] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const serviceCsvHeaders = [
+    "id", "name", "description", "price", "durationMinutes", 
+    "category", "isVisibleOnPOS", "isBookable", "imageUrl"
+  ];
+  const serviceTemplateHeaders = [
+    "name", "description", "price", "durationMinutes", 
+    "category", "isVisibleOnPOS", "isBookable", "imageUrl"
+  ];
 
   const fetchServices = React.useCallback(async () => {
     if (userDoc?.storeId) {
@@ -58,12 +110,46 @@ export default function ServicesPage() {
     try {
       await deleteService(serviceId);
       toast({ title: "Success", description: "Service deleted successfully." });
-      fetchServices(); // Refresh the list
+      fetchServices(); 
     } catch (error: any) {
       console.error("Error deleting service:", error);
       toast({ title: "Error", description: `Failed to delete service: ${error.message}`, variant: "destructive" });
     }
     setIsDeleting(null);
+  };
+
+  const handleExportAllServices = () => {
+    if (services.length === 0) {
+      toast({ title: "No Services", description: "There are no services to export.", variant: "default" });
+      return;
+    }
+    const csvString = convertServicesToCSV(services, serviceCsvHeaders);
+    downloadCSV(csvString, "all_services.csv");
+    toast({ title: "Export Successful", description: "All services exported to all_services.csv" });
+  };
+
+  const handleExportServiceTemplate = () => {
+    const csvString = convertServicesToCSV([], serviceTemplateHeaders, true);
+    downloadCSV(csvString, "service_import_template.csv");
+    toast({ title: "Template Downloaded", description: "Service import template (service_import_template.csv) downloaded." });
+  };
+
+  const handleImportServiceClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleServiceFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      toast({
+        title: "File Selected",
+        description: `${file.name} ready for import. Service import processing not yet implemented.`,
+      });
+      if(fileInputRef.current) {
+        fileInputRef.current.value = ""; 
+      }
+      // TODO: Implement CSV parsing and data import logic for services
+    }
   };
 
   const filteredServices = services.filter(service =>
@@ -74,15 +160,50 @@ export default function ServicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
+       <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: "none" }}
+        accept=".csv"
+        onChange={handleServiceFileChange}
+      />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl font-headline tracking-tight text-foreground flex items-center">
           <ConciergeBell className="mr-3 h-8 w-8 text-primary" /> Service Management
         </h1>
-        <Link href="/services/add">
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Service
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="text-foreground hover:bg-accent hover:text-accent-foreground"
+            onClick={handleImportServiceClick}
+          >
+            <UploadCloud className="mr-2 h-4 w-4" /> Import CSV
           </Button>
-        </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground">
+                <DownloadCloud className="mr-2 h-4 w-4" /> Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-popover text-popover-foreground">
+              <DropdownMenuItem onClick={handleExportAllServices}>
+                <FileDown className="mr-2 h-4 w-4" /> Export All Services
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                <FileDown className="mr-2 h-4 w-4" /> Export Selected (Soon)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleExportServiceTemplate}>
+                <FileDown className="mr-2 h-4 w-4" /> Export CSV Template
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Link href="/services/add">
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Service
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="shadow-lg">
