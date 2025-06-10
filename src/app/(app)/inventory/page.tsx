@@ -1,25 +1,30 @@
+
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Search, FileDown, FileUp, BotMessageSquare } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, PlusCircle, Search, FileDown, FileUp, BotMessageSquare, DownloadCloud } from "lucide-react";
 import type { Product } from "@/types";
 import Image from "next/image";
+import { useToast } from "@/hooks/use-toast";
 
 const mockProducts: Product[] = [
-  { id: "1", name: "Espresso Beans", sku: "EB001", price: 15.99, stockQuantity: 120, category: "Coffee", isVisibleOnPOS: true, lowStockThreshold: 20, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 10, supplierLeadTimeDays: 3, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
-  { id: "2", name: "Organic Milk", sku: "MK002", price: 3.49, stockQuantity: 8, category: "Dairy", isVisibleOnPOS: true, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 2, supplierLeadTimeDays: 1, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
+  { id: "1", name: "Espresso Beans", sku: "EB001", price: 15.99, stockQuantity: 120, category: "Coffee", isVisibleOnPOS: true, lowStockThreshold: 20, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 10, supplierLeadTimeDays: 3, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1", barcode: "123456789012", description: "Rich dark roast beans.", supplier: "Bean Co", tags: ["coffee", "dark roast"] },
+  { id: "2", name: "Organic Milk", sku: "MK002", price: 3.49, stockQuantity: 8, category: "Dairy", isVisibleOnPOS: true, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 2, supplierLeadTimeDays: 1, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1", barcode: "987654321098", description: "Fresh organic whole milk.", supplier: "Farm Fresh", historicalSalesData: {"2023-01": 50, "2023-02": 60} },
   { id: "3", name: "Croissants (Box of 6)", sku: "PS003", price: 8.99, stockQuantity: 0, category: "Pastries", isVisibleOnPOS: true, lowStockThreshold: 5, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 5, supplierLeadTimeDays: 2, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
   { id: "4", name: "Artisan Bread", sku: "BR004", price: 5.20, stockQuantity: 35, category: "Bakery", isVisibleOnPOS: false, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 3, supplierLeadTimeDays: 1, createdAt: new Date() as any, lastUpdatedAt: new Date() as any, storeId: "s1" },
 ];
 
 function getStockBadgeClasses(quantity: number, lowStockThreshold?: number): string {
   if (quantity === 0) return "bg-destructive text-destructive-foreground";
-  if (lowStockThreshold && quantity < lowStockThreshold) return "bg-yellow-500 text-yellow-950 dark:bg-yellow-600 dark:text-yellow-50"; // Specific yellow for warning
-  return "bg-emerald-600 text-white dark:bg-emerald-700 dark:text-emerald-50"; // Success-like color
+  if (lowStockThreshold && quantity < lowStockThreshold) return "bg-yellow-500 text-yellow-950 dark:bg-yellow-600 dark:text-yellow-50";
+  return "bg-emerald-600 text-white dark:bg-emerald-700 dark:text-emerald-50";
 }
 
 function getStockBadgeText(quantity: number, lowStockThreshold?: number): string {
@@ -28,8 +33,96 @@ function getStockBadgeText(quantity: number, lowStockThreshold?: number): string
   return "In Stock";
 }
 
+// CSV Helper functions
+const escapeCSVField = (field: any): string => {
+  if (field === null || field === undefined) {
+    return "";
+  }
+  const stringField = String(field);
+  if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+    return `"${stringField.replace(/"/g, '""')}"`;
+  }
+  return stringField;
+};
+
+const convertToCSV = (data: Product[], headers: string[], isTemplate: boolean = false): string => {
+  const headerRow = headers.join(',');
+  if (isTemplate) {
+    return headerRow;
+  }
+
+  const rows = data.map(product => {
+    return headers.map(header => {
+      let value: any;
+      switch (header) {
+        case 'tags':
+          value = product.tags ? product.tags.join('|') : '';
+          break;
+        case 'historicalSalesData':
+          value = product.historicalSalesData ? JSON.stringify(product.historicalSalesData) : '';
+          break;
+        default:
+          value = (product as any)[header];
+      }
+      return escapeCSVField(value);
+    }).join(',');
+  });
+
+  return [headerRow, ...rows].join('\n');
+};
+
+const downloadCSV = (csvString: string, filename: string) => {
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
+
 
 export default function InventoryPage() {
+  const { toast } = useToast();
+
+  // Define headers for export and template
+  // These should match the fields you expect for import/export
+  const csvHeaders = [
+    "id", "name", "sku", "barcode", "price", "stockQuantity", "category", 
+    "imageUrl", "isVisibleOnPOS", "lowStockThreshold", "description", 
+    "supplier", "tags", "salesVelocity", "historicalSalesData", "supplierLeadTimeDays"
+  ];
+   // For the template, we might exclude system-generated fields like 'id' or 'storeId' 
+   // or make them optional, but including them guides the user.
+  const templateHeaders = [
+    "name", "sku", "barcode", "price", "stockQuantity", "category", 
+    "imageUrl", "isVisibleOnPOS", "lowStockThreshold", "description", 
+    "supplier", "tags", "salesVelocity", "historicalSalesData", "supplierLeadTimeDays"
+  ];
+
+
+  const handleExportAll = () => {
+    // In a real app, you would fetch all products from Firestore here
+    const productsToExport = mockProducts; 
+    if (productsToExport.length === 0) {
+      toast({ title: "No Products", description: "There are no products to export.", variant: "default" });
+      return;
+    }
+    const csvString = convertToCSV(productsToExport, csvHeaders);
+    downloadCSV(csvString, "all_products.csv");
+    toast({ title: "Export Successful", description: "All products exported to all_products.csv" });
+  };
+
+  const handleExportTemplate = () => {
+    const csvString = convertToCSV([], templateHeaders, true); // Pass empty array and isTemplate=true
+    downloadCSV(csvString, "product_import_template.csv");
+    toast({ title: "Template Downloaded", description: "Product import template (product_import_template.csv) downloaded." });
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -38,9 +131,25 @@ export default function InventoryPage() {
           <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground">
             <FileUp className="mr-2 h-4 w-4" /> Import
           </Button>
-          <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground">
-            <FileDown className="mr-2 h-4 w-4" /> Export
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground">
+                <DownloadCloud className="mr-2 h-4 w-4" /> Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-popover text-popover-foreground">
+              <DropdownMenuItem onClick={handleExportAll}>
+                <FileDown className="mr-2 h-4 w-4" /> Export All Products
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                <FileDown className="mr-2 h-4 w-4" /> Export Selected (Soon)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleExportTemplate}>
+                <FileDown className="mr-2 h-4 w-4" /> Export CSV Template
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Link href="/inventory/predictive">
             <Button>
               <BotMessageSquare className="mr-2 h-4 w-4" /> AI Predictions
@@ -124,3 +233,4 @@ export default function InventoryPage() {
     </div>
   );
 }
+
