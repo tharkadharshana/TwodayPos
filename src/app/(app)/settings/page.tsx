@@ -1,26 +1,10 @@
+
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronRight, Landmark, FileText, Users, CreditCard, Bell, Palette, ShieldCheck, ShoppingBag } from "lucide-react";
 import { settingsNavItems } from "@/config/site";
 
-
-const settingCategories = [
-  { title: "Store Details", description: "Manage store name, address, contact info.", href: "/settings/store", icon: Landmark },
-  { title: "Tax Settings", description: "Configure tax rates and rules.", href: "/settings/taxes", icon: PercentIcon },
-  { title: "Business Hours", description: "Set your operational hours.", href: "/settings/hours", icon: ClockIcon },
-  { title: "Digital Receipts", description: "Customize receipt logo and messages.", href: "/settings/receipts", icon: FileText },
-  { title: "User Management", description: "Manage staff accounts and roles.", href: "/settings/users", icon: Users },
-  { title: "Payment Gateways", description: "Connect and manage payment processors.", href: "/settings/payments", icon: CreditCard },
-  { title: "Notifications", description: "Configure alert preferences.", href: "/settings/notifications", icon: Bell },
-  { title: "Appearance", description: "Customize POS theme and layout.", href: "/settings/appearance", icon: Palette },
-  { title: "Security", description: "Manage passwords and access control.", href: "/settings/security", icon: ShieldCheck },
-  { title: "Integrations", description: "Manage third-party app connections.", href: "/settings/integrations", icon: PuzzleIcon },
-  { title: "Subscription", description: "Manage your PerfectPOS subscription.", href: "/settings/subscription", icon: StarIcon },
-  { title: "Devices", description: "Manage connected POS devices.", href: "/settings/devices", icon: HardDriveIcon },
-  { title: "Offline Mode", description: "Configure offline transaction settings.", href: "/settings/offline", icon: WifiOffIcon },
-  { title: "Product Settings", description: "Manage categories, variants, and modifiers.", href: "/settings/products", icon: ShoppingBag },
-];
-
+// Define custom icons before they are used
 const PercentIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg>
 );
@@ -55,6 +39,22 @@ const WifiOffIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const settingCategories = [
+  { title: "Store Details", description: "Manage store name, address, contact info.", href: "/settings/store", icon: Landmark },
+  { title: "Tax Settings", description: "Configure tax rates and rules.", href: "/settings/taxes", icon: PercentIcon },
+  { title: "Business Hours", description: "Set your operational hours.", href: "/settings/hours", icon: ClockIcon },
+  { title: "Digital Receipts", description: "Customize receipt logo and messages.", href: "/settings/receipts", icon: FileText },
+  { title: "User Management", description: "Manage staff accounts and roles.", href: "/settings/users", icon: Users },
+  { title: "Payment Gateways", description: "Connect and manage payment processors.", href: "/settings/payments", icon: CreditCard },
+  { title: "Notifications", description: "Configure alert preferences.", href: "/settings/notifications", icon: Bell },
+  { title: "Appearance", description: "Customize POS theme and layout.", href: "/settings/appearance", icon: Palette },
+  { title: "Security", description: "Manage passwords and access control.", href: "/settings/security", icon: ShieldCheck },
+  { title: "Integrations", description: "Manage third-party app connections.", href: "/settings/integrations", icon: PuzzleIcon },
+  { title: "Subscription", description: "Manage your PerfectPOS subscription.", href: "/settings/subscription", icon: StarIcon },
+  { title: "Devices", description: "Manage connected POS devices.", href: "/settings/devices", icon: HardDriveIcon },
+  { title: "Offline Mode", description: "Configure offline transaction settings.", href: "/settings/offline", icon: WifiOffIcon },
+  { title: "Product Settings", description: "Manage categories, variants, and modifiers.", href: "/settings/products", icon: ShoppingBag },
+];
 
 export default function SettingsPage() {
   return (
@@ -65,16 +65,21 @@ export default function SettingsPage() {
         {settingCategories.map((category) => {
           // Check if this category is directly in settingsNavItems
           const isCoreSetting = settingsNavItems.some(navItem => navItem.href === category.href);
-          const Icon = isCoreSetting 
-            ? settingsNavItems.find(navItem => navItem.href === category.href)!.icon 
-            : category.icon;
-
+          // Use the icon from settingsNavItems if it's a core setting and found, otherwise use the icon from category
+          let IconComponent = category.icon; // Default to category.icon
+          if (isCoreSetting) {
+            const navItemConfig = settingsNavItems.find(navItem => navItem.href === category.href);
+            if (navItemConfig && navItemConfig.icon) {
+              IconComponent = navItemConfig.icon;
+            }
+          }
+          
           return (
             <Link href={category.href} key={category.title} className="block hover:no-underline">
               <Card className="shadow-lg hover:shadow-xl transition-shadow h-full flex flex-col">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-lg font-medium text-text-black flex items-center">
-                    <Icon className="mr-3 h-5 w-5 text-primary" />
+                    <IconComponent className="mr-3 h-5 w-5 text-primary" />
                     {category.title}
                   </CardTitle>
                   <ChevronRight className="h-5 w-5 text-muted-foreground" />
