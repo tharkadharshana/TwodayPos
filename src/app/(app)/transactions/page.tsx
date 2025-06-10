@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -7,14 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Search, FileText, RotateCcw, FileDown, Loader2 } from "lucide-react";
+import { MoreHorizontal, Search, FileText, RotateCcw, FileDown, Loader2, WifiOff } from "lucide-react";
 import { useUser } from "@/context/UserContext";
 import { getTransactionsByStoreId } from "@/lib/firestoreUtils";
 import type { Transaction } from "@/types";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { FirebaseError } from "firebase/app";
 
-function getStatusBadgeVariant(status: Transaction['status']): "default" | "secondary" | "destructive" | "outline" {
+function getStatusBadgeVariant(status: Transaction['paymentStatus']): "default" | "secondary" | "destructive" | "outline" {
   switch (status) {
     case "completed": return "default"; 
     case "refunded": return "destructive";
@@ -24,7 +26,7 @@ function getStatusBadgeVariant(status: Transaction['status']): "default" | "seco
   }
 }
 
-function getStatusBadgeClasses(status: Transaction['status']): string {
+function getStatusBadgeClasses(status: Transaction['paymentStatus']): string {
   switch (status) {
     case 'completed': return 'bg-green-500 text-white';
     case 'refunded': return 'bg-red-500 text-white';
@@ -41,20 +43,32 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState("");
-  // const [dateRange, setDateRange] = React.useState<DateRange | undefined>(); // For date range filter
+  const [offlineError, setOfflineError] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
+  const fetchTransactions = React.useCallback(async () => {
     if (userDoc?.storeId) {
       setIsLoading(true);
-      getTransactionsByStoreId(userDoc.storeId)
-        .then(setTransactions)
-        .catch(error => {
-          console.error("Error fetching transactions:", error);
+      setOfflineError(null);
+      try {
+        const fetchedTransactions = await getTransactionsByStoreId(userDoc.storeId);
+        setTransactions(fetchedTransactions);
+      } catch (error: any) {
+        console.error("Error fetching transactions:", error);
+        if (error instanceof FirebaseError && (error.code === 'unavailable' || error.message.includes("offline"))) {
+          setOfflineError("Cannot load transactions while offline. Please check your connection. Some previously loaded data might be shown if available.");
+          // Keep existing transactions if any, so user can see stale data
+        } else {
           toast({ title: "Error", description: "Could not load transactions.", variant: "destructive" });
-        })
-        .finally(() => setIsLoading(false));
+        }
+      } finally {
+        setIsLoading(false);
+      }
     }
   }, [userDoc?.storeId, toast]);
+
+  React.useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   const filteredTransactions = transactions.filter(transaction => {
     const searchLower = searchTerm.toLowerCase();
@@ -65,7 +79,6 @@ export default function TransactionsPage() {
       transaction.cashierName?.toLowerCase().includes(searchLower)
     );
   });
-  // Add date range filtering here if dateRange state is implemented
 
   return (
     <div className="flex flex-col gap-6">
@@ -91,13 +104,21 @@ export default function TransactionsPage() {
               />
             </div>
             {/* Date Range Picker can be added here */}
-            {/* <Input type="date" placeholder="Date Range" className="w-full md:w-auto" /> */}
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
              <div className="flex justify-center items-center py-10">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+          ) : offlineError ? (
+            <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-2">
+                <WifiOff className="h-12 w-12 text-destructive" />
+                <p className="text-lg font-semibold text-destructive">Offline</p>
+                <p>{offlineError}</p>
+                <Button onClick={fetchTransactions} variant="outline" className="mt-4 text-text-black hover:bg-accent hover:text-accent-foreground">
+                    <RotateCcw className="mr-2 h-4 w-4" /> Retry
+                </Button>
             </div>
           ) : filteredTransactions.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
@@ -130,7 +151,7 @@ export default function TransactionsPage() {
                       <Badge variant={getStatusBadgeVariant(transaction.paymentStatus)}
                              className={getStatusBadgeClasses(transaction.paymentStatus)}
                       >
-                        {transaction.paymentStatus.replace("_", " ")}
+                        {transaction.paymentStatus.replace(/_/g, " ")}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
