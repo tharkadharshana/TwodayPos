@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -27,8 +26,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Icons } from "@/components/icons";
 import { siteConfig, mainNavItems, settingsNavItems, type NavItem } from "@/config/site";
 import { UserNav } from "@/components/layout/user-nav";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Wifi, WifiOff } from "lucide-react";
+import { Wifi, WifiOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface AppShellProps {
@@ -134,19 +134,19 @@ function SyncStatusIndicator() {
 
   let statusText = "Synced";
   let Icon = Wifi;
-  let iconColor = "text-green-500";
+  let iconColorClass = "text-green-500 dark:text-green-400"; // Adjusted for dark mode
 
   if (!isOnline) {
     statusText = "Offline";
     Icon = WifiOff;
-    iconColor = "text-yellow-500";
+    iconColorClass = "text-yellow-500 dark:text-yellow-400";
     if (pendingSyncCount > 0) {
       statusText = `Offline - ${pendingSyncCount} pending`;
     }
   } else if (pendingSyncCount > 0) {
     statusText = `Syncing ${pendingSyncCount} items...`;
     Icon = Wifi; 
-    iconColor = "text-blue-500 animate-pulse";
+    iconColorClass = "text-sky-500 dark:text-sky-400 animate-pulse";
   }
   
   return (
@@ -154,7 +154,7 @@ function SyncStatusIndicator() {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent">
-            <Icon className={cn("h-5 w-5", iconColor)} />
+            <Icon className={cn("h-5 w-5", iconColorClass)} />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top" className="bg-popover text-popover-foreground">
@@ -180,7 +180,7 @@ function AppShellInternal({ children }: AppShellProps) {
 
   return (
     <>
-      <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <SidebarHeader className="p-4 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2" onClick={closeMobileSidebar}>
             <Icons.Logo className="h-8 w-8 text-sidebar-primary" />
@@ -221,19 +221,23 @@ function AppShellInternal({ children }: AppShellProps) {
         </ScrollArea>
         <SidebarFooter className="p-4 flex items-center justify-between border-t border-sidebar-border">
           <UserNav />
-          <div className="group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
              <SyncStatusIndicator />
+             <ThemeToggle />
           </div>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="flex flex-col">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6 md:justify-end">
+      <SidebarInset className="flex flex-col bg-background">
+        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background px-4 md:px-6 md:justify-end">
           <div className="md:hidden"> 
             <SidebarTrigger />
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
              <div className="hidden md:block"> 
                 <SyncStatusIndicator />
+             </div>
+             <div className="hidden md:block">
+              <ThemeToggle />
              </div>
              <UserNav /> 
           </div>

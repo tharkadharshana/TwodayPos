@@ -26,8 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 
-
-const mockCategories = ["All", "Drinks", "Pastries", "Food", "Merchandise"]; // Keep for UI, filtering can be client-side for now
+const mockCategories = ["All", "Drinks", "Pastries", "Food", "Merchandise"];
 
 export default function SalesPage() {
   const { user, userDoc } = useUser();
@@ -56,7 +55,7 @@ export default function SalesPage() {
             getCustomersByStoreId(userDoc.storeId),
             getStoreDetails(userDoc.storeId)
           ]);
-          setProducts(fetchedProducts.filter(p => p.isVisibleOnPOS && p.stockQuantity > 0)); // Only show visible & in-stock items
+          setProducts(fetchedProducts.filter(p => p.isVisibleOnPOS && p.stockQuantity > 0)); 
           setCustomers(fetchedCustomers);
           setStoreDetails(fetchedStoreDetails);
         } catch (error) {
@@ -69,7 +68,7 @@ export default function SalesPage() {
     }
   }, [userDoc?.storeId, toast]);
 
-  const taxRate = storeDetails?.taxRate || 0.0; // Default to 0 if not set
+  const taxRate = storeDetails?.taxRate || 0.0;
 
   const addToCart = (product: Product) => {
     setCartItems(prevItems => {
@@ -84,7 +83,7 @@ export default function SalesPage() {
             return prevItems;
         }
       }
-      return [...prevItems, { productId: product.id, name: product.name, sku: product.sku, quantity: 1, price: product.price, totalPrice: product.price, imageUrl: product.imageUrl }];
+      return [...prevItems, { productId: product.id, name: product.name, sku: product.sku, quantity: 1, price: product.price, totalPrice: product.price, imageUrl: product.imageUrl, stockQuantity: product.stockQuantity }];
     });
   };
 
@@ -93,23 +92,23 @@ export default function SalesPage() {
   };
 
   const updateQuantity = (productId: string, newQuantity: number) => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
-
+    const productInCart = cartItems.find(item => item.productId === productId);
+    if (!productInCart) return;
+  
     if (newQuantity <= 0) {
       removeFromCart(productId);
       return;
     }
-    if (newQuantity > product.stockQuantity) {
-        toast({ title: "Stock Limit", description: `Cannot set quantity for ${product.name} above stock level (${product.stockQuantity}).`, variant: "default" });
+    if (newQuantity > productInCart.stockQuantity) {
+        toast({ title: "Stock Limit", description: `Cannot set quantity for ${productInCart.name} above stock level (${productInCart.stockQuantity}).`, variant: "default" });
         setCartItems(prevItems =>
             prevItems.map(item =>
-            item.productId === productId ? { ...item, quantity: product.stockQuantity, totalPrice: product.stockQuantity * item.price } : item
+            item.productId === productId ? { ...item, quantity: productInCart.stockQuantity, totalPrice: productInCart.stockQuantity * item.price } : item
             )
         );
         return;
     }
-
+  
     setCartItems(prevItems =>
       prevItems.map(item =>
         item.productId === productId ? { ...item, quantity: newQuantity, totalPrice: newQuantity * item.price } : item
@@ -130,7 +129,6 @@ export default function SalesPage() {
     .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
     .filter(p => selectedCategory === "All" || p.category === selectedCategory)
     .filter(p => p.isVisibleOnPOS && p.stockQuantity > 0);
-
 
   const handleCheckout = async () => {
     if (!userDoc || !user) {
@@ -163,13 +161,12 @@ export default function SalesPage() {
         subtotal,
         tax,
         total,
-        "card", // Placeholder payment method
+        "card", 
         selectedCustomerId,
         selectedCustomer?.name
       );
       toast({ title: "Checkout Successful", description: "Transaction completed." });
       clearCart();
-      // Optionally, refresh products to reflect new stock counts
       const refreshedProducts = await getProductsByStoreId(userDoc.storeId);
       setProducts(refreshedProducts.filter(p => p.isVisibleOnPOS && p.stockQuantity > 0));
 
@@ -182,7 +179,6 @@ export default function SalesPage() {
 
   return (
     <div className="flex h-[calc(100vh-theme(spacing.16)-theme(spacing.16))] max-h-[calc(100vh-theme(spacing.16)-theme(spacing.16))]">
-      {/* Product Selection Area */}
       <div className="flex-grow-[2] p-4 flex flex-col border-r border-border overflow-hidden">
         <div className="mb-4">
           <div className="relative">
@@ -200,13 +196,13 @@ export default function SalesPage() {
                 key={category} 
                 variant={selectedCategory === category ? "default" : "outline"} 
                 size="sm" 
-                className="shrink-0 text-text-black data-[state=active]:bg-primary data-[state=active]:text-primary-foreground hover:bg-accent hover:text-accent-foreground"
+                className="shrink-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={() => setSelectedCategory(category)}
               >
                 {category}
               </Button>
             ))}
-            <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-text-black"><Filter className="h-5 w-5"/></Button>
+            <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-foreground"><Filter className="h-5 w-5"/></Button>
           </div>
         </div>
         <ScrollArea className="flex-1 -mx-4">
@@ -223,7 +219,7 @@ export default function SalesPage() {
               {filteredProducts.map(product => (
                 <Card 
                   key={product.id} 
-                  className="cursor-pointer hover:shadow-xl transition-shadow aspect-square flex flex-col items-center justify-center p-2 text-center shadow-md"
+                  className="cursor-pointer hover:shadow-xl transition-shadow aspect-square flex flex-col items-center justify-center p-2 text-center shadow-md bg-card text-card-foreground"
                   onClick={() => addToCart(product)}
                   role="button"
                   tabIndex={0}
@@ -238,12 +234,12 @@ export default function SalesPage() {
                     className="rounded-md mb-2 object-cover" 
                     data-ai-hint="product item"
                   />
-                  <p className="text-sm font-medium text-text-black leading-tight line-clamp-2">{product.name}</p>
+                  <p className="text-sm font-medium text-foreground leading-tight line-clamp-2">{product.name}</p>
                   <p className="text-xs text-primary font-semibold">${product.price.toFixed(2)}</p>
                   <p className="text-xs text-muted-foreground">Stock: {product.stockQuantity}</p>
                 </Card>
               ))}
-              <Card className="cursor-not-allowed opacity-50 aspect-square flex flex-col items-center justify-center p-2 text-center border-dashed border-2 border-muted-foreground/50">
+              <Card className="cursor-not-allowed opacity-50 aspect-square flex flex-col items-center justify-center p-2 text-center border-dashed border-2 border-muted-foreground/50 bg-card text-card-foreground">
                   <PackageSearch className="h-10 w-10 text-muted-foreground/70 mb-2"/>
                   <p className="text-sm font-medium text-muted-foreground">Custom Item (Soon)</p>
               </Card>
@@ -252,10 +248,9 @@ export default function SalesPage() {
         </ScrollArea>
       </div>
 
-      {/* Cart and Checkout Area */}
       <div className="flex-grow-[1] p-4 flex flex-col bg-card shadow-lg overflow-hidden w-full max-w-md md:max-w-sm lg:max-w-md xl:max-w-lg">
         <CardHeader className="p-0 pb-4">
-          <CardTitle className="text-2xl font-headline flex items-center justify-between text-text-black">
+          <CardTitle className="text-2xl font-headline flex items-center justify-between text-foreground">
             <div className="flex items-center">
               <ShoppingBasket className="mr-2 h-6 w-6 text-primary"/> Current Order
             </div>
@@ -273,7 +268,7 @@ export default function SalesPage() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={clearCart} className="bg-destructive hover:bg-destructive/90">Clear Cart</AlertDialogAction>
+                        <AlertDialogAction onClick={clearCart} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Clear Cart</AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
@@ -286,7 +281,7 @@ export default function SalesPage() {
               <div key={item.productId} className="py-3 flex items-center">
                 <Image src={item.imageUrl || "https://placehold.co/40x40.png"} alt={item.name} width={40} height={40} className="rounded-md mr-3 object-cover" data-ai-hint="cart item" />
                 <div className="flex-grow">
-                  <p className="font-medium text-text-black line-clamp-1">{item.name}</p>
+                  <p className="font-medium text-foreground line-clamp-1">{item.name}</p>
                   <div className="flex items-center mt-1">
                      <Input 
                         type="number"
@@ -299,7 +294,7 @@ export default function SalesPage() {
                      <span className="text-xs text-muted-foreground ml-1">x ${item.price.toFixed(2)}</span>
                   </div>
                 </div>
-                <p className="font-semibold text-text-black w-20 text-right">${item.totalPrice.toFixed(2)}</p>
+                <p className="font-semibold text-foreground w-20 text-right">${item.totalPrice.toFixed(2)}</p>
                 <Button variant="ghost" size="icon" className="ml-1 text-muted-foreground hover:text-destructive" onClick={() => removeFromCart(item.productId)} aria-label={`Remove ${item.name} from cart`}>
                     <Trash2 className="h-4 w-4"/>
                 </Button>
@@ -312,19 +307,19 @@ export default function SalesPage() {
         <div className="space-y-2 text-sm mb-4">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Subtotal</span>
-            <span className="font-medium text-text-black">${subtotal.toFixed(2)}</span>
+            <span className="font-medium text-foreground">${subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Tax ({ (taxRate * 100).toFixed(0) }%)</span>
-            <span className="font-medium text-text-black">${tax.toFixed(2)}</span>
+            <span className="font-medium text-foreground">${tax.toFixed(2)}</span>
           </div>
            <div className="flex justify-between items-center">
             <Button variant="link" className="p-0 h-auto text-primary text-xs cursor-not-allowed"><Percent className="inline h-3 w-3 mr-1"/>Add Discount (Soon)</Button>
-            <span className="font-medium text-text-black">-$0.00</span>
+            <span className="font-medium text-foreground">-$0.00</span>
           </div>
           <Separator />
           <div className="flex justify-between text-lg font-bold">
-            <span className="text-text-black">Total</span>
+            <span className="text-foreground">Total</span>
             <span className="text-primary">${total.toFixed(2)}</span>
           </div>
         </div>
@@ -345,7 +340,7 @@ export default function SalesPage() {
             </Select>
           </div>
           <Button 
-            className="h-14 text-sm bg-primary hover:bg-primary/90 text-primary-foreground col-span-2"
+            className="h-14 text-sm col-span-2"
             onClick={handleCheckout}
             disabled={isCheckingOut || cartItems.length === 0}
           >

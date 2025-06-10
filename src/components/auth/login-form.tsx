@@ -72,7 +72,6 @@ export function LoginForm({ className, ...props }: React.HTMLAttributes<HTMLDivE
 
   const handleBiometricLogin = async () => {
     setIsLoading(true);
-    // Simulate biometric check
     await new Promise(resolve => setTimeout(resolve, 1500));
     setIsLoading(false);
     toast({
@@ -80,7 +79,6 @@ export function LoginForm({ className, ...props }: React.HTMLAttributes<HTMLDivE
       description: "Biometric authentication not implemented in this demo.",
       variant: "default",
     });
-    // Potentially, if successful: router.push("/dashboard");
   };
 
   return (
@@ -92,7 +90,7 @@ export function LoginForm({ className, ...props }: React.HTMLAttributes<HTMLDivE
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-text-black">Email</FormLabel>
+                <FormLabel className="text-foreground">Email</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -108,7 +106,7 @@ export function LoginForm({ className, ...props }: React.HTMLAttributes<HTMLDivE
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-text-black">Password</FormLabel>
+                <FormLabel className="text-foreground">Password</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -119,10 +117,10 @@ export function LoginForm({ className, ...props }: React.HTMLAttributes<HTMLDivE
               </FormItem>
             )}
           />
-          <Button disabled={isLoading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" type="submit">
+          <Button disabled={isLoading} className="w-full" type="submit">
             {isLoading && (
               <svg
-                className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                className="animate-spin -ml-1 mr-3 h-5 w-5 text-primary-foreground"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -156,7 +154,7 @@ export function LoginForm({ className, ...props }: React.HTMLAttributes<HTMLDivE
           </span>
         </div>
       </div>
-      <Button variant="outline" type="button" disabled={isLoading} onClick={handleBiometricLogin} className="w-full text-text-black hover:bg-accent hover:text-accent-foreground">
+      <Button variant="outline" type="button" disabled={isLoading} onClick={handleBiometricLogin} className="w-full text-foreground hover:bg-accent hover:text-accent-foreground">
         {isLoading ? (
           <svg
             className="animate-spin -ml-1 mr-3 h-5 w-5"

@@ -18,15 +18,15 @@ export default function CustomersPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-3xl font-headline tracking-tight text-text-black">Customer Management</h1>
-        <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+        <h1 className="text-3xl font-headline tracking-tight text-foreground">Customer Management</h1>
+        <Button>
           <PlusCircle className="mr-2 h-4 w-4" /> Add Customer
         </Button>
       </div>
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-xl font-headline text-text-black">Customers List</CardTitle>
+          <CardTitle className="text-xl font-headline text-foreground">Customers List</CardTitle>
           <CardDescription className="text-muted-foreground">View and manage customer profiles.</CardDescription>
           <div className="relative mt-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -54,17 +54,17 @@ export default function CustomersPage() {
                       <AvatarFallback>{customer.name.split(" ").map(n => n[0]).join("")}</AvatarFallback>
                     </Avatar>
                   </TableCell>
-                  <TableCell className="font-medium text-text-black">{customer.name}</TableCell>
+                  <TableCell className="font-medium text-foreground">{customer.name}</TableCell>
                   <TableCell className="hidden sm:table-cell text-muted-foreground">
                     <div>{customer.email || "N/A"}</div>
                     <div>{customer.phone || "N/A"}</div>
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell text-right text-text-black">${customer.totalSpent.toFixed(2)}</TableCell>
-                  <TableCell className="text-right text-text-black">{customer.loyaltyPoints}</TableCell>
+                  <TableCell className="hidden lg:table-cell text-right text-foreground">${customer.totalSpent.toFixed(2)}</TableCell>
+                  <TableCell className="text-right text-foreground">{customer.loyaltyPoints}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-text-black">
+                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

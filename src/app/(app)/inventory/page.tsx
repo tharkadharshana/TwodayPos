@@ -16,10 +16,10 @@ const mockProducts: Product[] = [
   { id: "4", name: "Artisan Bread", sku: "BR004", price: 5.20, stockQuantity: 35, category: "Bakery", isVisibleOnPOS: false, lowStockThreshold: 10, imageUrl: "https://placehold.co/40x40.png", salesVelocity: 3, supplierLeadTimeDays: 1 },
 ];
 
-function getStockBadgeVariant(quantity: number, lowStockThreshold?: number): "default" | "secondary" | "destructive" | "outline" {
-  if (quantity === 0) return "destructive";
-  if (lowStockThreshold && quantity < lowStockThreshold) return "secondary"; // Using secondary for "low stock" (yellow-ish in some themes)
-  return "default"; // "In Stock" (usually primary or green)
+function getStockBadgeClasses(quantity: number, lowStockThreshold?: number): string {
+  if (quantity === 0) return "bg-destructive text-destructive-foreground";
+  if (lowStockThreshold && quantity < lowStockThreshold) return "bg-yellow-500 text-yellow-950 dark:bg-yellow-600 dark:text-yellow-50"; // Specific yellow for warning
+  return "bg-emerald-600 text-white dark:bg-emerald-700 dark:text-emerald-50"; // Success-like color
 }
 
 function getStockBadgeText(quantity: number, lowStockThreshold?: number): string {
@@ -33,20 +33,20 @@ export default function InventoryPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-3xl font-headline tracking-tight text-text-black">Inventory Management</h1>
+        <h1 className="text-3xl font-headline tracking-tight text-foreground">Inventory Management</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="text-text-black hover:bg-accent hover:text-accent-foreground">
+          <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground">
             <FileUp className="mr-2 h-4 w-4" /> Import
           </Button>
-          <Button variant="outline" className="text-text-black hover:bg-accent hover:text-accent-foreground">
+          <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground">
             <FileDown className="mr-2 h-4 w-4" /> Export
           </Button>
           <Link href="/inventory/predictive">
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button>
               <BotMessageSquare className="mr-2 h-4 w-4" /> AI Predictions
             </Button>
           </Link>
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button>
             <PlusCircle className="mr-2 h-4 w-4" /> Add Product
           </Button>
         </div>
@@ -54,7 +54,7 @@ export default function InventoryPage() {
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-xl font-headline text-text-black">Products List</CardTitle>
+          <CardTitle className="text-xl font-headline text-foreground">Products List</CardTitle>
           <CardDescription className="text-muted-foreground">Manage your products, stock levels, and details.</CardDescription>
           <div className="relative mt-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -85,28 +85,23 @@ export default function InventoryPage() {
                       width={40}
                       height={40}
                       className="rounded-md"
-                      data-ai-hint="product image"
+                      data-ai-hint="product item"
                     />
                   </TableCell>
-                  <TableCell className="font-medium text-text-black">{product.name}</TableCell>
+                  <TableCell className="font-medium text-foreground">{product.name}</TableCell>
                   <TableCell className="text-muted-foreground">{product.sku}</TableCell>
                   <TableCell className="hidden md:table-cell text-muted-foreground">{product.category}</TableCell>
-                  <TableCell className="text-right text-text-black">${product.price.toFixed(2)}</TableCell>
-                  <TableCell className="text-right text-text-black">{product.stockQuantity}</TableCell>
+                  <TableCell className="text-right text-foreground">${product.price.toFixed(2)}</TableCell>
+                  <TableCell className="text-right text-foreground">{product.stockQuantity}</TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    <Badge variant={getStockBadgeVariant(product.stockQuantity, product.lowStockThreshold)}
-                           className={
-                            product.stockQuantity === 0 ? 'bg-destructive text-destructive-foreground' : 
-                            (product.lowStockThreshold && product.stockQuantity < product.lowStockThreshold) ? 'bg-yellow-400 text-yellow-900' : 
-                            'bg-green-500 text-white'
-                           }>
+                    <Badge className={getStockBadgeClasses(product.stockQuantity, product.lowStockThreshold)}>
                       {getStockBadgeText(product.stockQuantity, product.lowStockThreshold)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-text-black">
+                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

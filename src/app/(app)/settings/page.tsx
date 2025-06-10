@@ -59,14 +59,12 @@ const settingCategories = [
 export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-headline tracking-tight text-text-black">Settings</h1>
+      <h1 className="text-3xl font-headline tracking-tight text-foreground">Settings</h1>
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {settingCategories.map((category) => {
-          // Check if this category is directly in settingsNavItems
           const isCoreSetting = settingsNavItems.some(navItem => navItem.href === category.href);
-          // Use the icon from settingsNavItems if it's a core setting and found, otherwise use the icon from category
-          let IconComponent = category.icon; // Default to category.icon
+          let IconComponent = category.icon; 
           if (isCoreSetting) {
             const navItemConfig = settingsNavItems.find(navItem => navItem.href === category.href);
             if (navItemConfig && navItemConfig.icon) {
@@ -78,7 +76,7 @@ export default function SettingsPage() {
             <Link href={category.href} key={category.title} className="block hover:no-underline">
               <Card className="shadow-lg hover:shadow-xl transition-shadow h-full flex flex-col">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-lg font-medium text-text-black flex items-center">
+                  <CardTitle className="text-lg font-medium text-foreground flex items-center">
                     <IconComponent className="mr-3 h-5 w-5 text-primary" />
                     {category.title}
                   </CardTitle>

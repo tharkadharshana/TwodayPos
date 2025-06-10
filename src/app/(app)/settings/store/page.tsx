@@ -8,7 +8,6 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -110,7 +109,6 @@ export default function StoreSettingsPage() {
     try {
       await updateStoreDetails(userDoc.storeId, data);
       toast({ title: "Success", description: "Store settings updated successfully." });
-      // Optionally re-fetch store details to confirm update though form.reset might be enough
       const updatedStore = await getStoreDetails(userDoc.storeId);
       if (updatedStore) setStore(updatedStore);
     } catch (error) {
@@ -132,16 +130,15 @@ export default function StoreSettingsPage() {
     return <div className="text-center py-10 text-muted-foreground">Store details could not be loaded.</div>;
   }
 
-
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-headline tracking-tight text-text-black">Store Settings</h1>
+      <h1 className="text-3xl font-headline tracking-tight text-foreground">Store Settings</h1>
       
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl font-headline text-text-black">Store Details</CardTitle>
+              <CardTitle className="text-xl font-headline text-foreground">Store Details</CardTitle>
               <CardDescription className="text-muted-foreground">Manage your store&apos;s basic information, branding, and contact details.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -151,9 +148,9 @@ export default function StoreSettingsPage() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-text-black">Store Name</FormLabel>
+                      <FormLabel className="text-foreground">Store Name</FormLabel>
                       <FormControl>
-                        <Input {...field} className="text-text-black" />
+                        <Input {...field} className="text-foreground" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -164,9 +161,9 @@ export default function StoreSettingsPage() {
                   name="slogan"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-text-black">Slogan/Tagline (Optional)</FormLabel>
+                      <FormLabel className="text-foreground">Slogan/Tagline (Optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., Your favorite neighborhood spot" {...field} className="text-text-black" />
+                        <Input placeholder="e.g., Your favorite neighborhood spot" {...field} className="text-foreground" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -179,26 +176,26 @@ export default function StoreSettingsPage() {
                 name="logoUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-text-black">Store Logo URL</FormLabel>
+                    <FormLabel className="text-foreground">Store Logo URL</FormLabel>
                     <div className="flex items-center gap-4">
                       <Image 
                         src={field.value || "https://placehold.co/100x100.png"} 
                         alt="Store Logo" 
                         width={80} 
                         height={80} 
-                        className="rounded-lg border p-1 bg-white object-cover" 
+                        className="rounded-lg border p-1 bg-background object-cover" 
                         data-ai-hint="store logo"
                         onError={(e) => (e.currentTarget.src = "https://placehold.co/100x100.png")}
                       />
                       <div className="flex-grow">
                         <FormControl>
-                            <Input placeholder="https://example.com/logo.png" {...field} className="text-text-black" />
+                            <Input placeholder="https://example.com/logo.png" {...field} className="text-foreground" />
                         </FormControl>
                          <FormDescription className="text-xs mt-1">
                             Enter the full URL of your store logo. Actual upload coming soon.
                         </FormDescription>
                       </div>
-                      <Button type="button" variant="outline" className="text-text-black hover:bg-accent hover:text-accent-foreground cursor-not-allowed" disabled>
+                      <Button type="button" variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground cursor-not-allowed" disabled>
                         <UploadCloud className="mr-2 h-4 w-4" /> Change Logo
                       </Button>
                     </div>
@@ -207,21 +204,20 @@ export default function StoreSettingsPage() {
                 )}
               />
               
-
               <Separator />
 
-              <h3 className="text-lg font-semibold text-text-black">Contact Information</h3>
+              <h3 className="text-lg font-semibold text-foreground">Contact Information</h3>
               <div className="grid md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="contactPhone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-text-black">Phone Number</FormLabel>
+                      <FormLabel className="text-foreground">Phone Number</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input type="tel" placeholder="e.g., (555) 123-4567" {...field} className="pl-10 text-text-black" />
+                          <Input type="tel" placeholder="e.g., (555) 123-4567" {...field} className="pl-10 text-foreground" />
                         </div>
                       </FormControl>
                       <FormMessage />
@@ -233,11 +229,11 @@ export default function StoreSettingsPage() {
                   name="contactEmail"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-text-black">Public Email</FormLabel>
+                      <FormLabel className="text-foreground">Public Email</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input type="email" placeholder="e.g., contact@yourstore.com" {...field} className="pl-10 text-text-black" />
+                          <Input type="email" placeholder="e.g., contact@yourstore.com" {...field} className="pl-10 text-foreground" />
                         </div>
                       </FormControl>
                       <FormMessage />
@@ -250,11 +246,11 @@ export default function StoreSettingsPage() {
                 name="address.street"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel className="text-text-black">Street Address</FormLabel>
+                    <FormLabel className="text-foreground">Street Address</FormLabel>
                     <FormControl>
                         <div className="relative">
                         <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Textarea placeholder="123 Main Street" {...field} className="pl-10 text-text-black" rows={1} />
+                        <Textarea placeholder="123 Main Street" {...field} className="pl-10 text-foreground" rows={1} />
                         </div>
                     </FormControl>
                     <FormMessage />
@@ -263,35 +259,35 @@ export default function StoreSettingsPage() {
                 />
                 <div className="grid md:grid-cols-3 gap-6">
                     <FormField control={form.control} name="address.city" render={({ field }) => (
-                        <FormItem><FormLabel className="text-text-black">City</FormLabel><FormControl><Input {...field} className="text-text-black"/></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel className="text-foreground">City</FormLabel><FormControl><Input {...field} className="text-foreground"/></FormControl><FormMessage /></FormItem>
                     )}/>
                     <FormField control={form.control} name="address.state" render={({ field }) => (
-                        <FormItem><FormLabel className="text-text-black">State/Province</FormLabel><FormControl><Input {...field} className="text-text-black"/></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel className="text-foreground">State/Province</FormLabel><FormControl><Input {...field} className="text-foreground"/></FormControl><FormMessage /></FormItem>
                     )}/>
                     <FormField control={form.control} name="address.zip" render={({ field }) => (
-                        <FormItem><FormLabel className="text-text-black">ZIP/Postal Code</FormLabel><FormControl><Input {...field} className="text-text-black"/></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel className="text-foreground">ZIP/Postal Code</FormLabel><FormControl><Input {...field} className="text-foreground"/></FormControl><FormMessage /></FormItem>
                     )}/>
                 </div>
                  <FormField control={form.control} name="address.country" render={({ field }) => (
-                    <FormItem><FormLabel className="text-text-black">Country</FormLabel><FormControl><Input {...field} className="text-text-black"/></FormControl><FormMessage /></FormItem>
+                    <FormItem><FormLabel className="text-foreground">Country</FormLabel><FormControl><Input {...field} className="text-foreground"/></FormControl><FormMessage /></FormItem>
                 )}/>
               
               <Separator />
 
-              <h3 className="text-lg font-semibold text-text-black">Financial Settings</h3>
+              <h3 className="text-lg font-semibold text-foreground">Financial Settings</h3>
                 <div className="grid md:grid-cols-2 gap-6">
                     <FormField
                     control={form.control}
                     name="taxRate"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel className="text-text-black">Default Tax Rate</FormLabel>
+                        <FormLabel className="text-foreground">Default Tax Rate</FormLabel>
                         <FormControl>
                             <div className="relative">
                             <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input type="number" step="0.001" placeholder="e.g., 0.08 for 8%" {...field} 
                                    onChange={e => field.onChange(parseFloat(e.target.value) || 0)}
-                                   className="pl-10 text-text-black" />
+                                   className="pl-10 text-foreground" />
                             </div>
                         </FormControl>
                         <FormDescription>Enter as a decimal (e.g., 0.08 for 8%).</FormDescription>
@@ -304,9 +300,9 @@ export default function StoreSettingsPage() {
                     name="currency"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel className="text-text-black">Currency Code</FormLabel>
+                        <FormLabel className="text-foreground">Currency Code</FormLabel>
                         <FormControl>
-                            <Input placeholder="e.g., USD" {...field} className="text-text-black" />
+                            <Input placeholder="e.g., USD" {...field} className="text-foreground" />
                         </FormControl>
                         <FormDescription>3-letter ISO currency code.</FormDescription>
                         <FormMessage />
@@ -315,14 +311,13 @@ export default function StoreSettingsPage() {
                     />
                 </div>
 
-
               <Separator />
-              <h3 className="text-lg font-semibold text-text-black">Additional Settings</h3>
+              <h3 className="text-lg font-semibold text-foreground">Additional Settings</h3>
               <FormField
                 control={form.control}
                 name="showAddressOnReceipt"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 shadow">
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
                     <FormControl>
                       <Checkbox
                         checked={field.value}
@@ -330,7 +325,7 @@ export default function StoreSettingsPage() {
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel className="text-text-black">
+                      <FormLabel className="text-foreground">
                         Show store address on digital receipts
                       </FormLabel>
                     </div>
@@ -341,7 +336,7 @@ export default function StoreSettingsPage() {
                 control={form.control}
                 name="enableOnlineOrderingLink"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 shadow">
+                  <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 shadow-sm">
                     <FormControl>
                       <Checkbox
                         checked={field.value}
@@ -349,7 +344,7 @@ export default function StoreSettingsPage() {
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
-                      <FormLabel className="text-text-black">
+                      <FormLabel className="text-foreground">
                         Display online ordering link (if applicable)
                       </FormLabel>
                     </div>
@@ -361,9 +356,9 @@ export default function StoreSettingsPage() {
                 name="websiteUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-text-black">Website URL (Optional)</FormLabel>
+                    <FormLabel className="text-foreground">Website URL (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://www.yourstore.com" {...field} className="text-text-black" />
+                      <Input placeholder="https://www.yourstore.com" {...field} className="text-foreground" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -371,7 +366,7 @@ export default function StoreSettingsPage() {
               />
             </CardContent>
             <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={isSaving || isLoading} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button type="submit" disabled={isSaving || isLoading}>
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <Save className="mr-2 h-4 w-4" /> Save Changes
               </Button>

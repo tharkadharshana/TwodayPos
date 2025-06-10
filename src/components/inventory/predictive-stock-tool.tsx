@@ -16,7 +16,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Wand2 } from "lucide-react";
 
-// Mock product data for selection
 const mockProductsForAI = [
   { id: "1", name: "Espresso Beans", currentStock: 120, salesVelocity: 10, supplierLeadTimeDays: 3, historicalSalesData: JSON.stringify({"Mon":10, "Tue":12, "Wed":8}) },
   { id: "2", name: "Organic Milk", currentStock: 8, salesVelocity: 2, supplierLeadTimeDays: 1, historicalSalesData: JSON.stringify({"Mon":2, "Tue":3, "Wed":1}) },
@@ -25,13 +24,11 @@ const mockProductsForAI = [
 
 const stockOutFormSchema = z.object({
   productId: z.string().min(1, "Product is required."),
-  // Fields will be auto-filled based on productId selection
 });
 
 const reorderFormSchema = z.object({
   productId: z.string().min(1, "Product is required."),
   timeFrame: z.enum(['daily', 'weekly', 'monthly']),
-  // Other fields auto-filled
 });
 
 
@@ -67,7 +64,6 @@ export function PredictiveStockTool() {
     setSelectedProductForReorder(product || null);
   };
 
-
   async function onStockOutSubmit() {
     if (!selectedProductForStockOut) {
       toast({ title: "Error", description: "Please select a product.", variant: "destructive" });
@@ -80,7 +76,7 @@ export function PredictiveStockTool() {
         productName: selectedProductForStockOut.name,
         salesVelocity: selectedProductForStockOut.salesVelocity,
         currentStock: selectedProductForStockOut.currentStock,
-        historicalTrends: "Standard sales with slight weekend peaks.", // Mocked
+        historicalTrends: "Standard sales with slight weekend peaks.", 
         supplierLeadTime: selectedProductForStockOut.supplierLeadTimeDays,
       };
       const result = await predictStockOuts(input);
@@ -105,7 +101,7 @@ export function PredictiveStockTool() {
         productId: selectedProductForReorder.id,
         productName: selectedProductForReorder.name,
         currentStock: selectedProductForReorder.currentStock,
-        salesVelocity: selectedProductForReorder.salesVelocity, // Assuming this is daily for now, adjust if necessary
+        salesVelocity: selectedProductForReorder.salesVelocity, 
         historicalSalesData: selectedProductForReorder.historicalSalesData,
         timeFrame: data.timeFrame,
         supplierLeadTimeDays: selectedProductForReorder.supplierLeadTimeDays,
@@ -124,7 +120,7 @@ export function PredictiveStockTool() {
     <div className="grid md:grid-cols-2 gap-8">
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-xl font-headline text-text-black">Predict Stock-Outs</CardTitle>
+          <CardTitle className="text-xl font-headline text-foreground">Predict Stock-Outs</CardTitle>
           <CardDescription className="text-muted-foreground">Select a product to predict when it might run out of stock.</CardDescription>
         </CardHeader>
         <Form {...stockOutForm}>
@@ -135,7 +131,7 @@ export function PredictiveStockTool() {
                 name="productId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-text-black">Product</FormLabel>
+                    <FormLabel className="text-foreground">Product</FormLabel>
                     <Select onValueChange={handleStockOutProductChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -152,14 +148,14 @@ export function PredictiveStockTool() {
               />
               {selectedProductForStockOut && (
                 <div className="text-sm space-y-1 p-3 bg-muted rounded-md">
-                  <p><strong className="text-text-black">Current Stock:</strong> {selectedProductForStockOut.currentStock}</p>
-                  <p><strong className="text-text-black">Sales Velocity (daily):</strong> {selectedProductForStockOut.salesVelocity}</p>
-                  <p><strong className="text-text-black">Lead Time:</strong> {selectedProductForStockOut.supplierLeadTimeDays} days</p>
+                  <p><strong className="text-foreground">Current Stock:</strong> {selectedProductForStockOut.currentStock}</p>
+                  <p><strong className="text-foreground">Sales Velocity (daily):</strong> {selectedProductForStockOut.salesVelocity}</p>
+                  <p><strong className="text-foreground">Lead Time:</strong> {selectedProductForStockOut.supplierLeadTimeDays} days</p>
                 </div>
               )}
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={stockOutLoading || !selectedProductForStockOut} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button type="submit" disabled={stockOutLoading || !selectedProductForStockOut} className="w-full">
                 {stockOutLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <Wand2 className="mr-2 h-4 w-4" /> Predict Stock-Out
               </Button>
@@ -168,16 +164,16 @@ export function PredictiveStockTool() {
         </Form>
         {stockOutResult && (
           <CardContent className="mt-4 border-t pt-4">
-            <h4 className="font-semibold text-text-black mb-2">Prediction Result:</h4>
-            <p className="text-sm text-text-black"><strong>Stock-Out Prediction:</strong> {stockOutResult.stockOutPrediction}</p>
-            <p className="text-sm text-text-black mt-1"><strong>Reorder Suggestion:</strong> {stockOutResult.reorderSuggestion}</p>
+            <h4 className="font-semibold text-foreground mb-2">Prediction Result:</h4>
+            <p className="text-sm text-foreground"><strong>Stock-Out Prediction:</strong> {stockOutResult.stockOutPrediction}</p>
+            <p className="text-sm text-foreground mt-1"><strong>Reorder Suggestion:</strong> {stockOutResult.reorderSuggestion}</p>
           </CardContent>
         )}
       </Card>
 
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle className="text-xl font-headline text-text-black">Smart Reorder Suggestions</CardTitle>
+          <CardTitle className="text-xl font-headline text-foreground">Smart Reorder Suggestions</CardTitle>
           <CardDescription className="text-muted-foreground">Get AI-powered suggestions for reordering products.</CardDescription>
         </CardHeader>
         <Form {...reorderForm}>
@@ -188,7 +184,7 @@ export function PredictiveStockTool() {
                 name="productId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-text-black">Product</FormLabel>
+                    <FormLabel className="text-foreground">Product</FormLabel>
                     <Select onValueChange={handleReorderProductChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -208,7 +204,7 @@ export function PredictiveStockTool() {
                 name="timeFrame"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-text-black">Sales Velocity Time Frame</FormLabel>
+                    <FormLabel className="text-foreground">Sales Velocity Time Frame</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -227,14 +223,14 @@ export function PredictiveStockTool() {
               />
                {selectedProductForReorder && (
                 <div className="text-sm space-y-1 p-3 bg-muted rounded-md">
-                  <p><strong className="text-text-black">Current Stock:</strong> {selectedProductForReorder.currentStock}</p>
-                  <p><strong className="text-text-black">Sales Velocity (current unit):</strong> {selectedProductForReorder.salesVelocity}</p>
-                  <p><strong className="text-text-black">Lead Time:</strong> {selectedProductForReorder.supplierLeadTimeDays} days</p>
+                  <p><strong className="text-foreground">Current Stock:</strong> {selectedProductForReorder.currentStock}</p>
+                  <p><strong className="text-foreground">Sales Velocity (current unit):</strong> {selectedProductForReorder.salesVelocity}</p>
+                  <p><strong className="text-foreground">Lead Time:</strong> {selectedProductForReorder.supplierLeadTimeDays} days</p>
                 </div>
               )}
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={reorderLoading || !selectedProductForReorder} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button type="submit" disabled={reorderLoading || !selectedProductForReorder} className="w-full">
                 {reorderLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <Wand2 className="mr-2 h-4 w-4" /> Get Reorder Suggestion
               </Button>
@@ -243,10 +239,10 @@ export function PredictiveStockTool() {
         </Form>
         {reorderResult && (
           <CardContent className="mt-4 border-t pt-4">
-            <h4 className="font-semibold text-text-black mb-2">Suggestion Result:</h4>
-            <p className="text-sm text-text-black"><strong>Suggested Reorder Quantity:</strong> {reorderResult.reorderQuantity}</p>
-            <p className="text-sm text-text-black mt-1"><strong>Low Stock Alert:</strong> {reorderResult.lowStockAlert ? "Yes" : "No"}</p>
-            <p className="text-sm text-text-black mt-1"><strong>Reasoning:</strong> {reorderResult.reasoning}</p>
+            <h4 className="font-semibold text-foreground mb-2">Suggestion Result:</h4>
+            <p className="text-sm text-foreground"><strong>Suggested Reorder Quantity:</strong> {reorderResult.reorderQuantity}</p>
+            <p className="text-sm text-foreground mt-1"><strong>Low Stock Alert:</strong> {reorderResult.lowStockAlert ? "Yes" : "No"}</p>
+            <p className="text-sm text-foreground mt-1"><strong>Reasoning:</strong> {reorderResult.reasoning}</p>
           </CardContent>
         )}
       </Card>

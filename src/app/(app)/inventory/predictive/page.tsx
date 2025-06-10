@@ -7,12 +7,12 @@ export default function PredictiveInventoryPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild className="text-text-black hover:bg-accent hover:text-accent-foreground">
+        <Button variant="outline" size="icon" asChild className="text-foreground hover:bg-accent hover:text-accent-foreground">
           <Link href="/inventory">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <h1 className="text-3xl font-headline tracking-tight text-text-black">
+        <h1 className="text-3xl font-headline tracking-tight text-foreground">
           AI Predictive Inventory
         </h1>
       </div>

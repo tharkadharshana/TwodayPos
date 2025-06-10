@@ -9,7 +9,7 @@ export default function LoginPage() {
     <div className="container mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[380px] p-8 rounded-lg shadow-xl bg-card">
       <div className="flex flex-col space-y-2 text-center">
         <Icons.Logo className="mx-auto h-12 w-12 text-primary" />
-        <h1 className="text-3xl font-headline tracking-wider text-text-black">
+        <h1 className="text-3xl font-headline tracking-wider text-foreground">
           Welcome to {siteConfig.name}
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -19,7 +19,7 @@ export default function LoginPage() {
       <LoginForm />
       <p className="px-8 text-center text-sm text-muted-foreground">
         <Link
-          href="#" // Replace with actual forgot password link if available
+          href="#" 
           className="hover:text-primary hover:underline underline-offset-4"
         >
           Forgot password?

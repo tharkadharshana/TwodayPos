@@ -8,26 +8,24 @@ import { Separator } from "@/components/ui/separator";
 import { Eye, Save, UploadCloud, MessageSquare, Mail, Settings2 } from "lucide-react";
 import Image from "next/image";
 
-// This would be a client component in a real app
 export default function ReceiptSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-headline tracking-tight text-text-black">Digital Receipt Settings</h1>
+      <h1 className="text-3xl font-headline tracking-tight text-foreground">Digital Receipt Settings</h1>
       
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Settings Form Column */}
         <div className="md:col-span-2">
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl font-headline text-text-black">Receipt Customization</CardTitle>
+              <CardTitle className="text-xl font-headline text-foreground">Receipt Customization</CardTitle>
               <CardDescription className="text-muted-foreground">Personalize the appearance and content of your digital receipts.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label className="text-text-black">Receipt Logo</Label>
+                <Label className="text-foreground">Receipt Logo</Label>
                 <div className="flex items-center gap-4">
-                  <Image src="https://placehold.co/100x100.png" alt="Receipt Logo" width={60} height={60} className="rounded-md border p-1 bg-white" data-ai-hint="company logo" />
-                  <Button variant="outline" className="text-text-black hover:bg-accent hover:text-accent-foreground">
+                  <Image src="https://placehold.co/100x100.png" alt="Receipt Logo" width={60} height={60} className="rounded-md border p-1 bg-background" data-ai-hint="company logo" />
+                  <Button variant="outline" className="text-foreground hover:bg-accent hover:text-accent-foreground">
                     <UploadCloud className="mr-2 h-4 w-4" /> Upload New Logo
                   </Button>
                 </div>
@@ -37,68 +35,67 @@ export default function ReceiptSettingsPage() {
               <Separator />
 
               <div className="space-y-2">
-                <Label htmlFor="receiptHeader" className="text-text-black">Header Message (Optional)</Label>
-                <Input id="receiptHeader" placeholder="e.g., Thank you for your purchase!" className="text-text-black" />
+                <Label htmlFor="receiptHeader" className="text-foreground">Header Message (Optional)</Label>
+                <Input id="receiptHeader" placeholder="e.g., Thank you for your purchase!" className="text-foreground" />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="receiptFooter" className="text-text-black">Footer Message (Optional)</Label>
-                <Textarea id="receiptFooter" placeholder="e.g., Follow us on social media! Return policy details." className="text-text-black" rows={3}/>
+                <Label htmlFor="receiptFooter" className="text-foreground">Footer Message (Optional)</Label>
+                <Textarea id="receiptFooter" placeholder="e.g., Follow us on social media! Return policy details." className="text-foreground" rows={3}/>
               </div>
               
               <Separator />
 
-              <h3 className="text-lg font-semibold text-text-black">Information to Display</h3>
+              <h3 className="text-lg font-semibold text-foreground">Information to Display</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox id="showStoreName" defaultChecked />
-                  <Label htmlFor="showStoreName" className="text-sm font-normal text-text-black">Store Name</Label>
+                  <Label htmlFor="showStoreName" className="text-sm font-normal text-foreground">Store Name</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox id="showStoreAddress" defaultChecked />
-                  <Label htmlFor="showStoreAddress" className="text-sm font-normal text-text-black">Store Address</Label>
+                  <Label htmlFor="showStoreAddress" className="text-sm font-normal text-foreground">Store Address</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox id="showStorePhone" />
-                  <Label htmlFor="showStorePhone" className="text-sm font-normal text-text-black">Store Phone</Label>
+                  <Label htmlFor="showStorePhone" className="text-sm font-normal text-foreground">Store Phone</Label>
                 </div>
                  <div className="flex items-center space-x-2">
                   <Checkbox id="showCashierName" />
-                  <Label htmlFor="showCashierName" className="text-sm font-normal text-text-black">Cashier Name</Label>
+                  <Label htmlFor="showCashierName" className="text-sm font-normal text-foreground">Cashier Name</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox id="showTransactionTime" defaultChecked />
-                  <Label htmlFor="showTransactionTime" className="text-sm font-normal text-text-black">Transaction Time</Label>
+                  <Label htmlFor="showTransactionTime" className="text-sm font-normal text-foreground">Transaction Time</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox id="showLoyaltyPoints" />
-                  <Label htmlFor="showLoyaltyPoints" className="text-sm font-normal text-text-black">Loyalty Points Earned/Balance</Label>
+                  <Label htmlFor="showLoyaltyPoints" className="text-sm font-normal text-foreground">Loyalty Points Earned/Balance</Label>
                 </div>
               </div>
 
               <Separator />
-               <h3 className="text-lg font-semibold text-text-black">Delivery Channels</h3>
+               <h3 className="text-lg font-semibold text-foreground">Delivery Channels</h3>
                 <CardDescription className="text-muted-foreground -mt-2 mb-2">Configure default messaging for SMS and Email receipts.</CardDescription>
                 <div className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="smsDefaultMessage" className="text-text-black flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-primary"/>Default SMS Message</Label>
-                        <Textarea id="smsDefaultMessage" defaultValue="Your receipt from {StoreName}: {ReceiptLink}" className="text-text-black" rows={2}/>
+                        <Label htmlFor="smsDefaultMessage" className="text-foreground flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-primary"/>Default SMS Message</Label>
+                        <Textarea id="smsDefaultMessage" defaultValue="Your receipt from {StoreName}: {ReceiptLink}" className="text-foreground" rows={2}/>
                         <p className="text-xs text-muted-foreground">Use placeholders like {"{StoreName}"}, {"{ReceiptLink}"}, {"{OrderNumber}"}.</p>
                     </div>
                      <div className="space-y-2">
-                        <Label htmlFor="emailSubject" className="text-text-black flex items-center"><Mail className="w-4 h-4 mr-2 text-primary"/>Default Email Subject</Label>
-                        <Input id="emailSubject" defaultValue="Your Receipt from {StoreName} (Order #{OrderNumber})" className="text-text-black"/>
+                        <Label htmlFor="emailSubject" className="text-foreground flex items-center"><Mail className="w-4 h-4 mr-2 text-primary"/>Default Email Subject</Label>
+                        <Input id="emailSubject" defaultValue="Your Receipt from {StoreName} (Order #{OrderNumber})" className="text-foreground"/>
                     </div>
                      <div className="space-y-2">
-                        <Label htmlFor="emailBody" className="text-text-black flex items-center"><Mail className="w-4 h-4 mr-2 text-primary"/>Default Email Body Prefix</Label>
-                        <Textarea id="emailBody" defaultValue="Thank you for your order! You can view your receipt here: {ReceiptLink}" className="text-text-black" rows={3}/>
+                        <Label htmlFor="emailBody" className="text-foreground flex items-center"><Mail className="w-4 h-4 mr-2 text-primary"/>Default Email Body Prefix</Label>
+                        <Textarea id="emailBody" defaultValue="Thank you for your order! You can view your receipt here: {ReceiptLink}" className="text-foreground" rows={3}/>
                          <p className="text-xs text-muted-foreground">The actual receipt details will be appended after this text.</p>
                     </div>
                 </div>
 
-
               <div className="flex justify-end pt-4">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button>
                   <Save className="mr-2 h-4 w-4" /> Save Receipt Settings
                 </Button>
               </div>
@@ -106,15 +103,14 @@ export default function ReceiptSettingsPage() {
           </Card>
         </div>
 
-        {/* Receipt Preview Column */}
         <div className="md:col-span-1">
-          <Card className="shadow-lg sticky top-24"> {/* Sticky for preview */}
+          <Card className="shadow-lg sticky top-24"> 
             <CardHeader>
-              <CardTitle className="text-xl font-headline text-text-black flex items-center"><Eye className="mr-2 h-5 w-5 text-primary"/>Receipt Preview</CardTitle>
+              <CardTitle className="text-xl font-headline text-foreground flex items-center"><Eye className="mr-2 h-5 w-5 text-primary"/>Receipt Preview</CardTitle>
               <CardDescription className="text-muted-foreground">This is an approximate preview of your digital receipt.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border rounded-lg p-4 bg-white shadow-inner max-h-[600px] overflow-y-auto">
+              <div className="border rounded-lg p-4 bg-white shadow-inner max-h-[600px] overflow-y-auto"> {/* Preview forces white BG */}
                 <div className="text-center mb-4">
                   <Image src="https://placehold.co/80x80.png" alt="Preview Logo" width={60} height={60} className="mx-auto rounded-md mb-2" data-ai-hint="company logo"/>
                   <h2 className="text-lg font-semibold text-gray-800">PerfectPOS Demo Store</h2>
@@ -144,7 +140,7 @@ export default function ReceiptSettingsPage() {
               </div>
             </CardContent>
              <CardFooter>
-                <Button variant="outline" className="w-full text-text-black hover:bg-accent hover:text-accent-foreground">
+                <Button variant="outline" className="w-full text-foreground hover:bg-accent hover:text-accent-foreground">
                   <Settings2 className="mr-2 h-4 w-4" /> Send Test Receipt
                 </Button>
             </CardFooter>

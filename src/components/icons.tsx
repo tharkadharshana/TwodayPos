@@ -1,7 +1,7 @@
-import { Store, type LucideProps } from "lucide-react";
+import { Palette, type LucideProps } from "lucide-react"; // Changed Store to Palette
 
 export const Icons = {
   Logo: (props: LucideProps) => (
-    <Store {...props} />
+    <Palette {...props} /> // Changed Store to Palette
   ),
 };

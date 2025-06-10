@@ -3,89 +3,105 @@
 @tailwind utilities;
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Roboto', Arial, Helvetica, sans-serif;
 }
 
 @layer base {
   :root {
-    --background: 0 0% 98%; /* Light gray, almost white */
-    --foreground: 0 0% 3.9%; /* Default dark text, will be overridden by black */
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 0 0% 3.9%; /* Default dark text, will be overridden by black */
-    --popover: 0 0% 100%; /* White */
-    --popover-foreground: 0 0% 3.9%; /* Default dark text, will be overridden by black */
-    --primary: 141 56% 40%; /* Dark Green #1DB954 */
-    --primary-foreground: 0 0% 100%; /* White */
-    --secondary: 141 40% 90%; /* Lighter, desaturated green */
-    --secondary-foreground: 141 56% 25%; /* Darker green text on secondary */
-    --muted: 141 30% 95%; /* Very light, desaturated green */
-    --muted-foreground: 141 25% 45%; /* Desaturated green for muted text */
-    --accent: 120 100% 85%; /* Light Green #B3FFB3 */
-    --accent-foreground: 0 0% 0%; /* Black text on Light Green accents */
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 141 20% 88%; /* Light green-ish border */
-    --input: 141 20% 96%; /* Very light green-ish input background */
-    --ring: 141 56% 40%; /* Dark Green for focus rings */
-    --chart-1: 141 56% 40%; /* Dark Green */
-    --chart-2: 120 70% 60%; /* Lighter Green */
-    --chart-3: 141 40% 55%; /* Medium Green */
-    --chart-4: 120 80% 75%; /* Very Light Green */
-    --chart-5: 141 30% 70%; /* Muted Green */
+    --background: 220 30% 97%; /* Very Light Cool Gray */
+    --foreground: 220 20% 20%; /* Dark Cool Gray */
+    
+    --card: 220 30% 100%; /* White */
+    --card-foreground: 220 20% 20%; /* Dark Cool Gray */
+    
+    --popover: 220 30% 100%; /* White */
+    --popover-foreground: 220 20% 20%; /* Dark Cool Gray */
+    
+    --primary: 190 70% 45%; /* Artistic Teal */
+    --primary-foreground: 210 40% 98%; /* Almost White (for contrast on Teal) */
+    
+    --secondary: 220 25% 90%; /* Lighter Cool Gray */
+    --secondary-foreground: 190 70% 30%; /* Darker Teal */
+    
+    --muted: 220 25% 94%; /* Very Light Cool Gray */
+    --muted-foreground: 220 15% 50%; /* Medium Cool Gray */
+    
+    --accent: 190 60% 88%; /* Light Teal */
+    --accent-foreground: 190 70% 25%; /* Dark Teal */
+    
+    --destructive: 0 75% 55%; /* Vibrant Red */
+    --destructive-foreground: 0 0% 100%; /* White */
+    
+    --border: 220 20% 88%; /* Light Cool Gray Border */
+    --input: 220 20% 96%; /* Slightly Off-White Input Background */
+    --ring: 190 70% 55%; /* Brighter Teal for Focus Rings */
+
+    --chart-1: 190 70% 45%; /* Artistic Teal */
+    --chart-2: 190 60% 60%; /* Lighter Teal */
+    --chart-3: 210 50% 50%; /* Cool Blue */
+    --chart-4: 280 50% 60%; /* Artistic Purple */
+    --chart-5: 30 80% 65%;  /* Artistic Orange */
+    
     --radius: 0.5rem;
 
-    /* Custom: Ensure black text where specified */
-    --text-black: 0 0% 0%;
-    
-    /* Sidebar specific theme variables (Dark Theme for Sidebar) */
-    --sidebar-background: 141 56% 20%; /* Dark shade of primary green */
-    --sidebar-foreground: 0 0% 95%; /* Light text for readability */
-    --sidebar-primary: 120 100% 85%; /* Light Green for active/primary items */
-    --sidebar-primary-foreground: 141 56% 15%; /* Very Dark Green text on light green active items */
-    --sidebar-accent: 141 56% 28%; /* Slightly lighter dark green for hover/accent */
-    --sidebar-accent-foreground: 0 0% 98%; /* Light text */
-    --sidebar-border: 141 56% 25%; /* Border within sidebar */
-    --sidebar-ring: 120 100% 85%; /* Light Green for focus rings within sidebar */
+    /* Sidebar specific theme variables (Light Theme Sidebar) */
+    /* For a minimalistic approach, the sidebar can directly use the main theme variables. */
+    /* However, keeping them separate allows for future distinct styling if desired. */
+    /* Let's make the light sidebar slightly off from main background for distinction */
+    --sidebar-background: 220 30% 92%; /* Slightly darker light cool gray */
+    --sidebar-foreground: 220 20% 25%; /* Dark cool gray text */
+    --sidebar-primary: 190 70% 40%; /* Teal for active/primary items */
+    --sidebar-primary-foreground: 0 0% 100%; /* White text on primary */
+    --sidebar-accent: 220 25% 85%; /* Hover/accent, lighter cool gray */
+    --sidebar-accent-foreground: 190 70% 30%; /* Darker teal text */
+    --sidebar-border: 220 20% 80%; 
+    --sidebar-ring: 190 70% 55%;
   }
 
   .dark {
-    /* For consistency, we'll define a dark theme, though the app primarily uses a light theme with a dark sidebar */
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 141 50% 50%; /* Adjusted Dark Green for dark theme */
-    --primary-foreground: 0 0% 100%; 
-    --secondary: 141 30% 15%; 
-    --secondary-foreground: 0 0% 98%;
-    --muted: 141 20% 10%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 120 80% 70%; /* Adjusted Light Green for dark theme */
-    --accent-foreground: 0 0% 0%; 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 141 20% 20%;
-    --input: 141 20% 15%;
-    --ring: 141 50% 50%;
-    --chart-1: 141 50% 50%;
-    --chart-2: 120 60% 50%;
-    --chart-3: 141 35% 40%;
-    --chart-4: 120 70% 60%;
-    --chart-5: 141 25% 55%;
+    --background: 220 20% 12%; /* Very Dark Cool Gray */
+    --foreground: 220 25% 88%; /* Light Cool Gray */
+    
+    --card: 220 20% 18%; /* Darker Card Background */
+    --card-foreground: 220 25% 88%; /* Light Cool Gray */
+    
+    --popover: 220 20% 18%; /* Darker Popover Background */
+    --popover-foreground: 220 25% 88%; /* Light Cool Gray */
+    
+    --primary: 190 65% 55%; /* Brighter Teal for Dark Mode */
+    --primary-foreground: 220 20% 10%; /* Very Dark (for contrast on Teal) */
+    
+    --secondary: 220 20% 25%; /* Medium Dark Cool Gray */
+    --secondary-foreground: 190 65% 75%; /* Lighter Teal */
+    
+    --muted: 220 15% 22%; /* Dark Muted Background */
+    --muted-foreground: 220 20% 65%; /* Medium-Light Cool Gray */
+    
+    --accent: 190 60% 30%; /* Darker Teal Accent */
+    --accent-foreground: 190 65% 85%; /* Light Teal Text */
+    
+    --destructive: 0 70% 60%; /* Slightly brighter red for dark mode */
+    --destructive-foreground: 0 0% 100%; /* White */
+    
+    --border: 220 15% 30%; /* Dark Border */
+    --input: 220 15% 20%; /* Dark Input Background */
+    --ring: 190 60% 65%; /* Lighter Teal for Focus Rings */
 
-    --text-black: 0 0% 98%; /* In dark mode, "black" text becomes light */
+    --chart-1: 190 65% 55%; /* Brighter Teal */
+    --chart-2: 190 55% 70%; /* Lighter Teal */
+    --chart-3: 210 60% 65%; /* Cool Blue */
+    --chart-4: 280 60% 70%; /* Artistic Purple */
+    --chart-5: 30 70% 75%;  /* Artistic Orange */
 
-    /* Dark theme Sidebar variables (can be same as default sidebar if it's always dark) */
-    --sidebar-background: 141 56% 20%;
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 120 100% 85%;
-    --sidebar-primary-foreground: 141 56% 15%;
-    --sidebar-accent: 141 56% 28%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 141 56% 25%;
-    --sidebar-ring: 120 100% 85%;
+    /* Dark theme Sidebar variables (should be dark) */
+    --sidebar-background: 220 20% 10%; /* Even darker cool gray for sidebar */
+    --sidebar-foreground: 220 25% 90%; /* Light gray text */
+    --sidebar-primary: 190 65% 60%; /* Teal for active items */
+    --sidebar-primary-foreground: 220 20% 5%; /* Very dark text on primary */
+    --sidebar-accent: 220 20% 20%; /* Dark hover/accent */
+    --sidebar-accent-foreground: 190 65% 88%; /* Light teal text */
+    --sidebar-border: 220 15% 25%;
+    --sidebar-ring: 190 60% 65%;
   }
 }
 
@@ -95,22 +111,5 @@ body {
   }
   body {
     @apply bg-background text-foreground;
-    color: hsl(var(--text-black)); /* Apply black text by default */
-  }
-  /* Ensure headings and other specific elements also use black text if not overridden */
-  h1, h2, h3, h4, h5, h6 {
-    color: hsl(var(--text-black));
   }
 }
-
-/* Ensure components use the black text color where appropriate */
-.text-card-foreground {
-  color: hsl(var(--text-black));
-}
-.text-popover-foreground {
-  color: hsl(var(--text-black));
-}
-.text-muted-foreground {
-   color: hsl(var(--muted-foreground)); /* Use the specific muted foreground */
-}
-/* Other specific overrides might be needed depending on component usage */

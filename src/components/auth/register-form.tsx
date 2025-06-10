@@ -61,10 +61,7 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
       const userCredential = await createUserWithEmailAndPassword(firebaseAuth, data.email, data.password);
       const firebaseUser = userCredential.user;
 
-      // Update Firebase Auth profile
       await updateProfile(firebaseUser, { displayName: data.displayName });
-
-      // Create Firestore documents (user and store)
       await createInitialStoreForUser(firebaseUser.uid, data.email, data.displayName);
 
       toast({
@@ -101,7 +98,7 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
             name="displayName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-text-black">Display Name</FormLabel>
+                <FormLabel className="text-foreground">Display Name</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -117,7 +114,7 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-text-black">Email</FormLabel>
+                <FormLabel className="text-foreground">Email</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -133,7 +130,7 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-text-black">Password</FormLabel>
+                <FormLabel className="text-foreground">Password</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -149,7 +146,7 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
             name="confirmPassword"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-text-black">Confirm Password</FormLabel>
+                <FormLabel className="text-foreground">Confirm Password</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -160,10 +157,10 @@ export function RegisterForm({ className, ...props }: React.HTMLAttributes<HTMLD
               </FormItem>
             )}
           />
-          <Button disabled={isLoading} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" type="submit">
+          <Button disabled={isLoading} className="w-full" type="submit">
             {isLoading && (
               <svg
-                className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                className="animate-spin -ml-1 mr-3 h-5 w-5 text-primary-foreground"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
