@@ -1,36 +1,78 @@
+"use client";
+
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Search, FileText, RotateCcw, FileDown } from "lucide-react";
+import { MoreHorizontal, Search, FileText, RotateCcw, FileDown, Loader2 } from "lucide-react";
+import { useUser } from "@/context/UserContext";
+import { getTransactionsByStoreId } from "@/lib/firestoreUtils";
 import type { Transaction } from "@/types";
 import { format } from "date-fns";
-
-const mockTransactions: Transaction[] = [
-  { id: "TXN001", timestamp: new Date().toISOString(), items: [{ productId: "1", name: "Espresso", quantity: 2, price: 3.00, totalPrice: 6.00 }], subtotal: 6.00, taxAmount: 0.48, discountAmount: 0, totalAmount: 6.48, paymentMethod: "card", cashierId: "user1", storeId: "storeA", status: "completed", customerId: "1" },
-  { id: "TXN002", timestamp: new Date(Date.now() - 3600000).toISOString(), items: [{ productId: "2", name: "Latte", quantity: 1, price: 4.50, totalPrice: 4.50 }, { productId: "3", name: "Croissant", quantity: 1, price: 2.50, totalPrice: 2.50 }], subtotal: 7.00, taxAmount: 0.56, discountAmount: 0, totalAmount: 7.56, paymentMethod: "cash", cashierId: "user2", storeId: "storeA", status: "completed" },
-  { id: "TXN003", timestamp: new Date(Date.now() - 7200000).toISOString(), items: [{ productId: "4", name: "Muffin", quantity: 1, price: 2.75, totalPrice: 2.75 }], subtotal: 2.75, taxAmount: 0.22, discountAmount: 0, totalAmount: 2.97, paymentMethod: "card", cashierId: "user1", storeId: "storeA", status: "refunded", originalTransactionId: "TXN000" },
-];
+import { useToast } from "@/hooks/use-toast";
 
 function getStatusBadgeVariant(status: Transaction['status']): "default" | "secondary" | "destructive" | "outline" {
   switch (status) {
-    case "completed": return "default"; // Green
-    case "refunded": return "destructive"; // Red
-    case "partially_refunded": return "secondary"; // Yellow-ish
-    case "pending_sync": return "outline"; // Blue-ish or gray
+    case "completed": return "default"; 
+    case "refunded": return "destructive";
+    case "partially_refunded": return "secondary";
+    case "pending_sync": return "outline"; 
     default: return "outline";
   }
 }
 
+function getStatusBadgeClasses(status: Transaction['status']): string {
+  switch (status) {
+    case 'completed': return 'bg-green-500 text-white';
+    case 'refunded': return 'bg-red-500 text-white';
+    case 'partially_refunded': return 'bg-yellow-400 text-yellow-900';
+    case 'pending_sync': return 'bg-blue-500 text-white';
+    default: return 'bg-gray-500 text-white';
+  }
+}
+
+
 export default function TransactionsPage() {
+  const { userDoc } = useUser();
+  const { toast } = useToast();
+  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [searchTerm, setSearchTerm] = React.useState("");
+  // const [dateRange, setDateRange] = React.useState<DateRange | undefined>(); // For date range filter
+
+  React.useEffect(() => {
+    if (userDoc?.storeId) {
+      setIsLoading(true);
+      getTransactionsByStoreId(userDoc.storeId)
+        .then(setTransactions)
+        .catch(error => {
+          console.error("Error fetching transactions:", error);
+          toast({ title: "Error", description: "Could not load transactions.", variant: "destructive" });
+        })
+        .finally(() => setIsLoading(false));
+    }
+  }, [userDoc?.storeId, toast]);
+
+  const filteredTransactions = transactions.filter(transaction => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      transaction.id.toLowerCase().includes(searchLower) ||
+      transaction.transactionDisplayId?.toLowerCase().includes(searchLower) ||
+      transaction.customerName?.toLowerCase().includes(searchLower) ||
+      transaction.cashierName?.toLowerCase().includes(searchLower)
+    );
+  });
+  // Add date range filtering here if dateRange state is implemented
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl font-headline tracking-tight text-text-black">Transaction History</h1>
         <Button variant="outline" className="text-text-black hover:bg-accent hover:text-accent-foreground">
-          <FileDown className="mr-2 h-4 w-4" /> Export Data
+          <FileDown className="mr-2 h-4 w-4" /> Export Data (Soon)
         </Button>
       </div>
 
@@ -41,63 +83,77 @@ export default function TransactionsPage() {
           <div className="flex flex-col md:flex-row gap-2 mt-2">
             <div className="relative flex-grow">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by ID, customer, cashier..." className="pl-10 w-full" />
+              <Input 
+                placeholder="Search by ID, customer, cashier..." 
+                className="pl-10 w-full"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <Input type="date" placeholder="Date Range" className="w-full md:w-auto" />
-            {/* Add more filters for customer, cashier, store, payment method */}
+            {/* Date Range Picker can be added here */}
+            {/* <Input type="date" placeholder="Date Range" className="w-full md:w-auto" /> */}
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Date & Time</TableHead>
-                <TableHead className="hidden md:table-cell">Customer</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockTransactions.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell className="font-medium text-text-black">{transaction.id}</TableCell>
-                  <TableCell className="text-muted-foreground">{format(new Date(transaction.timestamp), "PPpp")}</TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground">{transaction.customerId || "N/A"}</TableCell>
-                  <TableCell className="text-right text-text-black">${transaction.totalAmount.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusBadgeVariant(transaction.status)}
-                           className={
-                            transaction.status === 'completed' ? 'bg-green-500 text-white' :
-                            transaction.status === 'refunded' ? 'bg-red-500 text-white' :
-                            transaction.status === 'partially_refunded' ? 'bg-yellow-400 text-yellow-900' :
-                            'bg-blue-500 text-white' // for pending_sync
-                           }
-                    >
-                      {transaction.status.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-text-black">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-popover text-popover-foreground">
-                        <DropdownMenuItem><FileText className="mr-2 h-4 w-4" /> View Details</DropdownMenuItem>
-                        <DropdownMenuItem><FileText className="mr-2 h-4 w-4" /> Resend Receipt</DropdownMenuItem>
-                        {transaction.status === "completed" && (
-                          <DropdownMenuItem><RotateCcw className="mr-2 h-4 w-4" /> Start Refund</DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          {isLoading ? (
+             <div className="flex justify-center items-center py-10">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+          ) : filteredTransactions.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+                {searchTerm ? "No transactions match your search." : "No transactions found for this store yet."}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Date & Time</TableHead>
+                  <TableHead className="hidden md:table-cell">Customer</TableHead>
+                  <TableHead className="hidden lg:table-cell">Cashier</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredTransactions.map((transaction) => (
+                  <TableRow key={transaction.id}>
+                    <TableCell className="font-medium text-text-black">{transaction.transactionDisplayId || transaction.id.substring(0,6)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {transaction.timestamp ? format(transaction.timestamp.toDate(), "PPpp") : 'N/A'}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground">{transaction.customerName || "N/A"}</TableCell>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground">{transaction.cashierName || "N/A"}</TableCell>
+                    <TableCell className="text-right text-text-black">${transaction.totalAmount.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusBadgeVariant(transaction.paymentStatus)}
+                             className={getStatusBadgeClasses(transaction.paymentStatus)}
+                      >
+                        {transaction.paymentStatus.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-text-black">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-popover text-popover-foreground">
+                          <DropdownMenuItem><FileText className="mr-2 h-4 w-4" /> View Details</DropdownMenuItem>
+                          <DropdownMenuItem><FileText className="mr-2 h-4 w-4" /> Resend Receipt</DropdownMenuItem>
+                          {transaction.paymentStatus === "completed" && (
+                            <DropdownMenuItem><RotateCcw className="mr-2 h-4 w-4" /> Start Refund</DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
