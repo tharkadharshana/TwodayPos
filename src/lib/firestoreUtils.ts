@@ -17,7 +17,7 @@ import {
   runTransaction
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem, Service, CartItem, UserRole } from "@/types";
+import type { Product, Customer, Transaction, Store, UserDocument, TransactionItem, Service, CartItem, UserRole, Role, Permission } from "@/types";
 
 // --- User and Store Management ---
 
@@ -25,7 +25,7 @@ export const createInitialStoreForUser = async (
   userId: string,
   email: string,
   displayNameInput?: string
-): Promise<{ storeId: string; userDocId: string }> => {
+): Promise<{ storeId: string; userDocId: string; adminRoleId: string }> => {
   const batch = writeBatch(db);
 
   const storeRef = doc(collection(db, "stores"));
@@ -34,9 +34,11 @@ export const createInitialStoreForUser = async (
   const storeNameBase = displayNameInput || email.split("@")[0] || `User_${userId.substring(0,5)}`;
 
   const newStore: Store = {
+    // ... (keep existing store properties)
     id: storeId,
     name: `${storeNameBase}'s Store`,
     ownerId: userId,
+    // ... (rest of the store properties)
     address: {
       street: "",
       city: "",
@@ -74,12 +76,98 @@ export const createInitialStoreForUser = async (
   };
   batch.set(storeRef, newStore);
 
+  batch.set(storeRef, newStore);
+
+  // --- Create Predefined Roles ---
+  const adminRoleRef = doc(collection(db, "roles"));
+  const managerRoleRef = doc(collection(db, "roles"));
+  const cashierRoleRef = doc(collection(db, "roles"));
+
+  const adminRoleId = adminRoleRef.id;
+  const managerRoleId = managerRoleRef.id;
+  const cashierRoleId = cashierRoleRef.id;
+
+  const allPermissions: Permission[] = [
+     // Products
+     "product:create", "product:read", "product:update", "product:delete",
+     // Services
+     "service:create", "service:read", "service:update", "service:delete",
+     // Customers
+     "customer:create", "customer:read", "customer:update", "customer:delete",
+     // Transactions
+     "transaction:create", "transaction:read", "transaction:update", "transaction:refund", // "transaction:update" might be too broad for cashier
+     // Settings
+     "settings:view:users", "settings:manage:users", // Manage users (add, edit roles, deactivate)
+     "settings:view:roles", "settings:manage:roles", // Manage roles (create, edit, delete custom roles)
+     "settings:view:store", "settings:manage:store", // Manage store details
+     // Dashboard
+     "dashboard:view",
+     // Inventory
+     "inventory:manage", "inventory:view",
+     // Terminal
+     "terminal:access", "terminal:process_sales", "terminal:process_refunds", "terminal:apply_discounts",
+     // Reports
+     "reports:view:sales", "reports:view:inventory", "reports:export:data",
+  ];
+
+  const adminRole: Role = {
+    id: adminRoleId,
+    storeId,
+    name: "Administrator",
+    permissions: allPermissions, // Admin gets all permissions
+    isPredefined: true,
+    createdAt: serverTimestamp() as Timestamp,
+    lastUpdatedAt: serverTimestamp() as Timestamp,
+  };
+  batch.set(adminRoleRef, adminRole);
+
+  const managerRole: Role = {
+    id: managerRoleId,
+    storeId,
+    name: "Manager",
+    permissions: [
+      "product:create", "product:read", "product:update", "product:delete",
+      "service:create", "service:read", "service:update", "service:delete",
+      "customer:create", "customer:read", "customer:update",
+      "transaction:create", "transaction:read", "transaction:refund",
+      "settings:view:users", // Managers can view users, maybe not manage roles/full user management
+      "dashboard:view",
+      "inventory:manage", "inventory:view",
+      "terminal:access", "terminal:process_sales", "terminal:process_refunds", "terminal:apply_discounts",
+      "reports:view:sales", "reports:view:inventory",
+    ],
+    isPredefined: true,
+    createdAt: serverTimestamp() as Timestamp,
+    lastUpdatedAt: serverTimestamp() as Timestamp,
+  };
+  batch.set(managerRoleRef, managerRole);
+
+  const cashierRole: Role = {
+    id: cashierRoleId,
+    storeId,
+    name: "Cashier",
+    permissions: [
+      "product:read", // Read products for POS
+      "service:read", // Read services for POS
+      "customer:create", "customer:read", // Create/read customers for transactions
+      "transaction:create", "transaction:read", // Create and view their transactions
+      "terminal:access", "terminal:process_sales", "terminal:apply_discounts", // No refunds by default for cashier
+      "dashboard:view", // View basic dashboard (maybe limited)
+    ],
+    isPredefined: true,
+    createdAt: serverTimestamp() as Timestamp,
+    lastUpdatedAt: serverTimestamp() as Timestamp,
+  };
+  batch.set(cashierRoleRef, cashierRole);
+  // --- End Create Predefined Roles ---
+
   const userRef = doc(db, "users", userId);
   const newUserDoc: UserDocument = {
     uid: userId,
     email: email,
     displayName: displayNameInput || email.split("@")[0] || "New User",
-    role: "admin", // New users are admins of their own store
+    // role: "admin", // OLD: Remove this line
+    roleId: adminRoleId, // NEW: Assign the ID of the created Admin role
     storeId: storeId,
     avatarUrl: "",
     createdAt: serverTimestamp() as Timestamp,
@@ -90,7 +178,7 @@ export const createInitialStoreForUser = async (
 
   await batch.commit();
 
-  return { storeId: storeId, userDocId: userId };
+  return { storeId: storeId, userDocId: userId, adminRoleId: adminRoleId };
 };
 
 interface AdminCreateUserParams {
@@ -98,7 +186,8 @@ interface AdminCreateUserParams {
   storeId: string;
   email: string;
   displayName: string;
-  role: Exclude<UserRole, 'admin'>;
+  // role: Exclude<UserRole, 'admin'>; // OLD
+  roleId: string; // NEW
 }
 
 export const adminCreateUserInFirestore = async ({
@@ -106,24 +195,28 @@ export const adminCreateUserInFirestore = async ({
   storeId,
   email,
   displayName,
-  role,
+  // role, // OLD
+  roleId, // NEW
 }: AdminCreateUserParams): Promise<void> => {
-  if (!uid || !storeId || !email || !displayName || !role) {
+  if (!uid || !storeId || !email || !displayName || !roleId) { // Updated check
     throw new Error("Missing required parameters to create user document in Firestore.");
   }
   const userRef = doc(db, "users", uid);
-  const newUserDocData: UserDocument = {
+  const newUserDocData: Omit<UserDocument, 'createdAt' | 'lastLoginAt' | 'isActive' | 'avatarUrl' | 'roleId'> & { roleId: string } = { // Adjusted type for clarity
     uid,
     email,
     displayName,
-    role,
+    // role, // OLD
+    roleId, // NEW
     storeId,
-    createdAt: serverTimestamp() as Timestamp,
-    lastLoginAt: serverTimestamp() as Timestamp, 
-    isActive: true, 
-    avatarUrl: "", 
   };
-  await setDoc(userRef, newUserDocData);
+  await setDoc(userRef, {
+     ...newUserDocData,
+     createdAt: serverTimestamp() as Timestamp,
+     lastLoginAt: serverTimestamp() as Timestamp,
+     isActive: true,
+     avatarUrl: "",
+  });
 };
 
 
@@ -138,15 +231,15 @@ export const getUserDocument = async (userId: string): Promise<UserDocument | nu
     const data = userSnap.data();
     return {
       uid: userSnap.id,
-      email: data.email || "", 
+      email: data.email || "",
       displayName: data.displayName || "",
-      role: data.role || "cashier",
+      roleId: data.roleId || null, // Ensure this line is present and correct
       storeId: data.storeId || null,
-      createdAt: data.createdAt, 
-      lastLoginAt: data.lastLoginAt || serverTimestamp() as Timestamp, 
+      createdAt: data.createdAt,
+      lastLoginAt: data.lastLoginAt || serverTimestamp() as Timestamp,
       isActive: data.isActive === undefined ? true : data.isActive,
       avatarUrl: data.avatarUrl || "",
-    } as UserDocument;
+    } as UserDocument; // Type assertion might be needed if roleId could be missing during transition
   }
   console.warn(`User document not found for UID: ${userId} in getUserDocument.`);
   return null;
@@ -218,13 +311,27 @@ export const getUsersByStoreId = async (storeId: string): Promise<UserDocument[]
   return querySnapshot.docs.map(docSnap => ({ uid: docSnap.id, ...docSnap.data() } as UserDocument));
 };
 
-export const updateUserRole = async (userId: string, newRole: UserRole): Promise<void> => {
+// export const updateUserRole = async (userId: string, newRole: UserRole): Promise<void> => {
+//   if (!userId) {
+//     throw new Error("updateUserRole called without a userId.");
+//   }
+//   const userRef = doc(db, "users", userId);
+//   await updateDoc(userRef, {
+//     role: newRole,
+//     lastUpdatedAt: serverTimestamp(),
+//   });
+// };
+
+export const updateUserRoleId = async (userId: string, newRoleId: string): Promise<void> => {
   if (!userId) {
-    throw new Error("updateUserRole called without a userId.");
+    throw new Error("updateUserRoleId called without a userId.");
+  }
+  if (!newRoleId) { // Basic check for newRoleId
+     throw new Error("updateUserRoleId called without a newRoleId.");
   }
   const userRef = doc(db, "users", userId);
   await updateDoc(userRef, {
-    role: newRole,
+    roleId: newRoleId, // Update roleId field
     lastUpdatedAt: serverTimestamp(),
   });
 };
@@ -240,6 +347,81 @@ export const updateUserStatus = async (userId: string, isActive: boolean): Promi
   });
 };
 
+// --- Role Management ---
+
+export const createRole = async (
+  storeId: string,
+  roleData: Omit<Role, "id" | "storeId" | "createdAt" | "lastUpdatedAt" | "isPredefined">
+): Promise<string> => {
+  if (!storeId) {
+    throw new Error("createRole called without a storeId.");
+  }
+  const rolesCollection = collection(db, "roles");
+  const newRoleRef = doc(rolesCollection);
+  const fullRoleData: Role = {
+    id: newRoleRef.id,
+    storeId,
+    name: roleData.name,
+    permissions: roleData.permissions || [],
+    isPredefined: false, // Custom roles are not predefined
+    createdAt: serverTimestamp() as Timestamp,
+    lastUpdatedAt: serverTimestamp() as Timestamp,
+  };
+  await setDoc(newRoleRef, fullRoleData);
+  return newRoleRef.id;
+};
+
+export const getRoleById = async (roleId: string): Promise<Role | null> => {
+  if (!roleId) {
+    console.warn("getRoleById called without a roleId.");
+    return null;
+  }
+  const roleRef = doc(db, "roles", roleId);
+  const roleSnap = await getDoc(roleRef);
+  if (roleSnap.exists()) {
+    return { id: roleSnap.id, ...roleSnap.data() } as Role;
+  }
+  return null;
+};
+
+export const getRolesByStoreId = async (storeId: string): Promise<Role[]> => {
+  if (!storeId) {
+    console.warn("getRolesByStoreId called without a storeId. Returning empty array.");
+    return [];
+  }
+  const rolesCollection = collection(db, "roles");
+  const q = query(rolesCollection, where("storeId", "==", storeId), orderBy("name"));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Role));
+};
+
+export const updateRole = async (roleId: string, data: Partial<Omit<Role, 'id' | 'storeId' | 'isPredefined' | 'createdAt'>>): Promise<void> => {
+  if (!roleId) {
+    throw new Error("updateRole called without a roleId.");
+  }
+  const roleRef = doc(db, "roles", roleId);
+  // Prevent changing id, storeId, isPredefined, createdAt
+  const { id, storeId, isPredefined, createdAt, ...updateDataSafe } = data as any;
+  await updateDoc(roleRef, {
+    ...updateDataSafe,
+    lastUpdatedAt: serverTimestamp(),
+  });
+};
+
+// For deleteRole, we need to consider what happens to users assigned this role.
+// For now, let's implement a simple delete. Handling users will be a UI/UX concern or a later enhancement.
+export const deleteRole = async (roleId: string): Promise<void> => {
+  if (!roleId) {
+    throw new Error("deleteRole called without a roleId.");
+  }
+  // Add a check: do not delete if role isPredefined
+  const roleToDelete = await getRoleById(roleId);
+  if (roleToDelete?.isPredefined) {
+      throw new Error("Cannot delete a predefined role.");
+  }
+  const roleRef = doc(db, "roles", roleId);
+  await deleteDoc(roleRef);
+};
 
 // --- Product Management ---
 

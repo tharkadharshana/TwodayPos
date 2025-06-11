@@ -4,18 +4,22 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getUserDocument, getStoreDetails } from '@/lib/firestoreUtils'; 
-import type { UserDocument, Store } from '@/types';
+import { getUserDocument, getStoreDetails, getRoleById } from '@/lib/firestoreUtils';
+import type { UserDocument, Store, Role, Permission } from '@/types';
 import { useRouter, usePathname } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
 interface UserContextType {
   user: FirebaseUser | null;
   userDoc: UserDocument | null;
+  userRole: Role | null;
+  userPermissions: Set<Permission>;
   storeDetails: Store | null;
   loading: boolean;
   storeId: string | null;
+  hasPermission: (permission: Permission) => boolean;
   refreshStoreDetails: () => Promise<void>;
+  // Add refreshUserPermissions or similar if needed for live updates without full reload
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -23,6 +27,8 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userDoc, setUserDoc] = useState<UserDocument | null>(null);
+  const [userRole, setUserRole] = useState<Role | null>(null);
+  const [userPermissions, setUserPermissions] = useState<Set<Permission>>(new Set());
   const [storeDetails, setStoreDetails] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -78,9 +84,36 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           } else {
             setUserDoc(firestoreUserDoc);
             await fetchStoreData(firestoreUserDoc.storeId); // Fetch store details after user doc
+
+            // Reset role and permissions before fetching new ones
+            setUserRole(null);
+            setUserPermissions(new Set());
+
+            if (firestoreUserDoc.roleId) {
+              try {
+                const role = await getRoleById(firestoreUserDoc.roleId);
+                if (role) {
+                  setUserRole(role);
+                  setUserPermissions(new Set(role.permissions as Permission[])); // Ensure permissions is string[] if needed
+                } else {
+                  console.warn(`Role with ID ${firestoreUserDoc.roleId} not found in UserContext.`);
+                  // Potentially set a default "no access" role or minimal permissions
+                }
+              } catch (error) {
+                console.error("Error fetching role in UserContext:", error);
+                toast({
+                    title: "Permissions Error",
+                    description: "Could not load user permissions.",
+                    variant: "destructive",
+                });
+              }
+            } else {
+                // User has a document but no roleId (should ideally not happen for active users)
+                console.warn(`User ${firebaseUser.uid} has no roleId in UserContext.`);
+            }
           }
         } catch (error) {
-          console.error("Error fetching user document in UserContext:", error);
+          console.error("Error fetching user document or role in UserContext:", error);
           toast({
             title: "Profile Load Error",
             description: "Could not load your user profile data.",
@@ -93,6 +126,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         setUserDoc(null);
         setStoreDetails(null);
+        setUserRole(null);
+        setUserPermissions(new Set());
         if (!pathname.startsWith('/login') && !pathname.startsWith('/register')) {
           router.push('/login');
         }
@@ -103,6 +138,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, [router, pathname, toast, fetchStoreData]);
 
+  const hasPermission = useCallback((permissionToCheck: Permission): boolean => {
+    return userPermissions.has(permissionToCheck);
+  }, [userPermissions]);
+
   const refreshStoreDetails = useCallback(async () => {
     if (userDoc?.storeId) {
       setLoading(true); // Optionally set loading state
@@ -112,7 +151,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [userDoc?.storeId, fetchStoreData]);
 
   return (
-    <UserContext.Provider value={{ user, userDoc, storeDetails, loading, storeId: userDoc?.storeId || null, refreshStoreDetails }}>
+    <UserContext.Provider value={{
+      user,
+      userDoc,
+      userRole,
+      userPermissions,
+      storeDetails,
+      loading,
+      storeId: userDoc?.storeId || null,
+      hasPermission,
+      refreshStoreDetails
+    }}>
       {children}
     </UserContext.Provider>
   );

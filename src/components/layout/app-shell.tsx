@@ -25,7 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Icons } from "@/components/icons";
-import { siteConfig, mainNavItems, settingsNavItems, type NavItem, type UserRole } from "@/config/site";
+import { siteConfig, mainNavItems, settingsNavItems, type NavItem } from "@/config/site"; // Removed UserRole
 import { UserNav } from "@/components/layout/user-nav";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -37,31 +37,46 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-function NavMenuItems({ items, currentPath, userRole, closeSidebar }: { items: NavItem[], currentPath: string, userRole: UserRole | undefined, closeSidebar?: () => void }) {
+function NavMenuItems({ items, currentPath, closeSidebar }: { items: NavItem[], currentPath: string, closeSidebar?: () => void }) {
   const { isMobile } = useSidebar();
+  const { hasPermission, loading: userContextLoading, user } = useUser();
 
   const handleLinkClick = () => {
     if (isMobile && closeSidebar) {
       closeSidebar();
     }
   };
-  
-  const filteredItems = items.filter(item => {
-    if (!item.allowedRoles) return userRole === 'admin'; // Default to admin if not specified
-    if (userRole) return item.allowedRoles.includes(userRole);
-    return false; // Don't show if no role or no allowedRoles
-  });
+
+  const filteredItems = React.useMemo(() => {
+    if (userContextLoading) return [];
+    if (!user) return [];
+
+    return items.filter(item => {
+      const mainPermissionOk = item.requiredPermission ? hasPermission(item.requiredPermission) : true;
+      if (!mainPermissionOk) return false;
+
+      if (item.items && item.items.length > 0) {
+        const visibleSubItems = item.items.filter(subItem =>
+          subItem.requiredPermission ? hasPermission(subItem.requiredPermission) : true
+        );
+        return visibleSubItems.length > 0;
+      }
+      return true;
+    });
+  }, [items, hasPermission, userContextLoading, user]);
+
 
   return filteredItems.map((item, index) => {
-    if (item.items && item.items.length > 0) {
-      // Filter sub-items as well
-      const visibleSubItems = item.items.filter(subItem => {
-        if (!subItem.allowedRoles) return userRole === 'admin';
-        if (userRole) return subItem.allowedRoles.includes(userRole);
-        return false;
-      });
+    // Sub-item filtering for rendering, assuming parent visibility is already handled by filteredItems
+    const visibleSubItems = React.useMemo(() => {
+        if (!item.items || userContextLoading || !user) return [];
+        return item.items.filter(subItem =>
+            subItem.requiredPermission ? hasPermission(subItem.requiredPermission) : true
+        );
+    }, [item.items, hasPermission, userContextLoading, user]);
 
-      if (visibleSubItems.length === 0) return null; // Don't render parent if no visible sub-items
+    if (item.items && item.items.length > 0) {
+      if (visibleSubItems.length === 0) return null; // Should be redundant if filteredItems logic is correct
 
       const isActiveParent = visibleSubItems.some(subItem => currentPath.startsWith(subItem.href));
       
@@ -84,7 +99,7 @@ function NavMenuItems({ items, currentPath, userRole, closeSidebar }: { items: N
                     isActive={currentPath.startsWith(subItem.href)}
                     onClick={handleLinkClick}
                   >
-                    <span> {/* Wrapper span */}
+                    <span>
                       <subItem.icon className="mr-2 h-4 w-4" />
                       {subItem.title}
                     </span>
@@ -97,6 +112,7 @@ function NavMenuItems({ items, currentPath, userRole, closeSidebar }: { items: N
       );
     }
 
+    // Render regular item (already passed permission check in filteredItems)
     return (
       <SidebarMenuItem key={index}>
         <Link href={item.href}>
@@ -106,7 +122,7 @@ function NavMenuItems({ items, currentPath, userRole, closeSidebar }: { items: N
             onClick={handleLinkClick}
             tooltip={item.title}
           >
-            <span> {/* Wrapper span */}
+            <span>
               <item.icon className="h-5 w-5" />
               <span>{item.title}</span>
             </span>
@@ -190,7 +206,7 @@ function SyncStatusIndicator() {
 function AppShellInternal({ children }: AppShellProps) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
-  const { userDoc, loading: userLoading } = useUser(); // Get userDoc from context
+  const { userDoc, loading: userLoading } = useUser();
 
   const closeMobileSidebar = () => {
     if (isMobile) {
@@ -198,7 +214,7 @@ function AppShellInternal({ children }: AppShellProps) {
     }
   };
 
-  const userRole = userDoc?.role;
+  // Removed: const userRole = userDoc?.role;
 
   // Determine which nav items and title to display
   let currentNavItems: NavItem[] = [];
@@ -244,7 +260,7 @@ function AppShellInternal({ children }: AppShellProps) {
                 <SidebarGroup className="p-2">
                   <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">{navTitle}</SidebarGroupLabel>
                   <SidebarMenu>
-                    <NavMenuItems items={currentNavItems} currentPath={pathname} userRole={userRole} closeSidebar={closeMobileSidebar} />
+                    <NavMenuItems items={currentNavItems} currentPath={pathname} closeSidebar={closeMobileSidebar} />
                   </SidebarMenu>
                 </SidebarGroup>
                 
@@ -253,7 +269,7 @@ function AppShellInternal({ children }: AppShellProps) {
                   <SidebarGroup className="p-2 mt-4">
                     <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">Back to App</SidebarGroupLabel>
                       <SidebarMenu>
-                        <NavMenuItems items={[mainBackLink]} currentPath={pathname} userRole={userRole} closeSidebar={closeMobileSidebar}/>
+                        <NavMenuItems items={[mainBackLink]} currentPath={pathname} closeSidebar={closeMobileSidebar}/>
                       </SidebarMenu>
                   </SidebarGroup>
                 )}
@@ -261,7 +277,7 @@ function AppShellInternal({ children }: AppShellProps) {
                   <SidebarGroup className="p-2 mt-4">
                     <SidebarGroupLabel className="text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">System</SidebarGroupLabel>
                       <SidebarMenu>
-                        <NavMenuItems items={[settingsBackLink]} currentPath={pathname} userRole={userRole} closeSidebar={closeMobileSidebar}/>
+                        <NavMenuItems items={[settingsBackLink]} currentPath={pathname} closeSidebar={closeMobileSidebar}/>
                       </SidebarMenu>
                   </SidebarGroup>
                 )}

@@ -1,6 +1,19 @@
 
 import type { Timestamp } from "firebase/firestore";
 
+export type Permission = string;
+// Examples: 'product:create', 'product:read', 'settings:manage:users', etc.
+
+export type Role = {
+  id: string; // Firestore document ID
+  storeId: string;
+  name: string; // e.g., "Lead Cashier", "Inventory Manager"
+  permissions: Permission[]; // Array of permission strings
+  isPredefined: boolean; // true for "Admin", "Manager", "Cashier"
+  createdAt: Timestamp;
+  lastUpdatedAt: Timestamp;
+};
+
 export type Product = {
   id: string; // Firestore document ID
   storeId: string;
@@ -157,7 +170,8 @@ export type UserDocument = {
   uid: string; 
   email: string;
   displayName?: string;
-  role: 'admin' | 'manager' | 'cashier';
+  // role: 'admin' | 'manager' | 'cashier'; // REMOVE THIS LINE
+  roleId: string; // ADD THIS LINE - Will be the ID of a document in the 'roles' collection
   storeId: string;
   createdAt: Timestamp;
   lastLoginAt?: Timestamp;
@@ -165,6 +179,9 @@ export type UserDocument = {
   avatarUrl?: string; 
 };
 
+// TODO: This UserRole type is for temporary compatibility during refactoring.
+// It will be removed once all parts of the app use the new Role system.
+export type UserRole = 'admin' | 'manager' | 'cashier';
 
 // For AI Features
 export type StockPrediction = {

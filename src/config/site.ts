@@ -1,9 +1,9 @@
 
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark, TestTubeDiagonal, ConciergeBell, Wifi, MonitorSmartphone, UserCog } from 'lucide-react';
-import type { UserDocument } from '@/types'; 
+import { LayoutDashboard, ShoppingCart, Boxes, Users, History, SettingsIcon, BotMessageSquare, FileText, Landmark, TestTubeDiagonal, ConciergeBell, Wifi, MonitorSmartphone, UserCog, ShieldCheck } from 'lucide-react';
+import type { UserDocument, Permission } from '@/types';
 
-export type UserRole = UserDocument['role']; 
+// Removed: export type UserRole = UserDocument['role'];
 
 export const siteConfig = {
   name: "PerfectPOS",
@@ -18,7 +18,7 @@ export type NavItem = {
   external?: boolean;
   label?: string;
   items?: NavItem[];
-  allowedRoles?: UserRole[]; 
+  requiredPermission?: Permission;
 };
 
 export const mainNavItems: NavItem[] = [
@@ -26,31 +26,31 @@ export const mainNavItems: NavItem[] = [
     title: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
-    allowedRoles: ['admin', 'manager', 'cashier'],
+    requiredPermission: "dashboard:view",
   },
   {
     title: "Terminal",
     href: "/terminal",
     icon: MonitorSmartphone,
-    allowedRoles: ['admin', 'manager', 'cashier'],
+    requiredPermission: "terminal:access",
   },
   {
     title: "Inventory",
     href: "/inventory",
     icon: Boxes,
-    allowedRoles: ['admin', 'manager'],
+    requiredPermission: "inventory:view",
     items: [
       {
         title: "Manage Stock",
         href: "/inventory",
         icon: Boxes, 
-        allowedRoles: ['admin', 'manager'],
+        requiredPermission: "inventory:view",
       },
       {
         title: "Predictive AI",
         href: "/inventory/predictive",
         icon: BotMessageSquare,
-        allowedRoles: ['admin', 'manager'],
+        requiredPermission: "inventory:view:ai",
       }
     ]
   },
@@ -58,25 +58,25 @@ export const mainNavItems: NavItem[] = [
     title: "Services",
     href: "/services",
     icon: ConciergeBell,
-    allowedRoles: ['admin', 'manager'],
+    requiredPermission: "service:view", // Assuming "service:view", can be "service:manage"
   },
   {
     title: "Customers",
     href: "/customers",
     icon: Users,
-    allowedRoles: ['admin', 'manager'],
+    requiredPermission: "customer:view", // Assuming "customer:view", can be "customer:manage"
   },
   {
     title: "Transactions",
     href: "/transactions",
     icon: History,
-    allowedRoles: ['admin', 'manager', 'cashier'],
+    requiredPermission: "transaction:read",
   },
   {
     title: "Developer",
     href: "/dev/populate-data",
     icon: TestTubeDiagonal, 
-    allowedRoles: ['admin'], 
+    requiredPermission: "dev:tools:access",
   },
 ];
 
@@ -85,30 +85,36 @@ export const settingsNavItems: NavItem[] = [
     title: "Store Settings",
     href: "/settings/store",
     icon: Landmark,
-    allowedRoles: ['admin', 'manager'],
+    requiredPermission: "settings:view:store",
   },
   {
     title: "User Management",
     href: "/settings/users",
-    icon: UserCog, // Changed icon
-    allowedRoles: ['admin'], // Only admins can manage users
+    icon: UserCog,
+    requiredPermission: "settings:manage:users",
+  },
+  {
+    title: "Roles & Permissions",
+    href: "/settings/roles",
+    icon: ShieldCheck,
+    requiredPermission: "settings:manage:roles",
   },
   {
     title: "Receipts",
     href: "/settings/receipts",
     icon: FileText,
-    allowedRoles: ['admin', 'manager'],
+    requiredPermission: "settings:view:receipts",
   },
   {
     title: "Offline & Sync", 
     href: "/settings/offline-sync",
     icon: Wifi,
-    allowedRoles: ['admin', 'manager'],
+    requiredPermission: "settings:view:offline",
   },
   {
     title: "General", 
     href: "/settings",
     icon: SettingsIcon, 
-    allowedRoles: ['admin', 'manager', 'cashier'], 
+    requiredPermission: "settings:view",
   },
 ];
